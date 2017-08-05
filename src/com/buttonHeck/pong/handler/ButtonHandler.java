@@ -1,4 +1,4 @@
-package com.buttonHeck.pong.controllers;
+package com.buttonHeck.pong.handler;
 
 import com.buttonHeck.pong.Game;
 import com.buttonHeck.pong.util.Options;
@@ -9,120 +9,101 @@ import javafx.scene.image.ImageView;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
-public abstract class ButtonController {
+public abstract class ButtonHandler {
 
-    private static boolean musicOn = true, soundsOn = true, itemsOn = true;
     private static ImageView startButton, exitButton, musicOnButton, soundsOnButton, itemsOnButton,
             easyButton, mediumButton, hardButton;
     private static ImageView classicLevel, magneticLevel, spaceLevel, returnBtn;
     private static ImageView[] items;
 
     static {
+        initializeButtons();
+        initializeSwitches();
+        initializeDifficultySwitches();
+        initializeMenuItems();
+    }
+
+    private static void initializeButtons() {
         GaussianBlur buttonEffect = new GaussianBlur(20);
-        startButton = new ImageView(ImageController.getButtonImage());
+        startButton = new ImageView(ImageHandler.getButtonImage());
         startButton.setEffect(buttonEffect);
-
-        exitButton = new ImageView(ImageController.getButtonImage());
+        exitButton = new ImageView(ImageHandler.getButtonImage());
         exitButton.setEffect(buttonEffect);
-
-        classicLevel = new ImageView(ImageController.getButtonImage());
+        classicLevel = new ImageView(ImageHandler.getButtonImage());
         classicLevel.setEffect(buttonEffect);
-
-        returnBtn = new ImageView(ImageController.getButtonImage());
+        returnBtn = new ImageView(ImageHandler.getButtonImage());
         returnBtn.setEffect(buttonEffect);
-
-        magneticLevel = new ImageView(ImageController.getButtonImage());
+        magneticLevel = new ImageView(ImageHandler.getButtonImage());
         magneticLevel.setEffect(buttonEffect);
-
-        spaceLevel = new ImageView(ImageController.getButtonImage());
+        spaceLevel = new ImageView(ImageHandler.getButtonImage());
         spaceLevel.setEffect(buttonEffect);
+    }
 
-        musicOnButton = new ImageView(ImageController.getSwitchImage(true));
-        musicOnButton.setOnMouseClicked(e -> {
-            setMusicOn();
-            AudioController.buttonClicked();
-        });
-        ImageController.setSwitchStyle(musicOnButton, true);
+    private static void initializeSwitches() {
+        musicOnButton = new ImageView(ImageHandler.getSwitchImage(true));
+        musicOnButton.setOnMouseClicked(e -> clickMusicSwitch());
+        ImageHandler.setSwitchStyle(musicOnButton, true);
 
-        soundsOnButton = new ImageView(ImageController.getSwitchImage(true));
-        soundsOnButton.setOnMouseClicked(e -> {
-            setSoundsOn();
-            AudioController.buttonClicked();
-        });
-        ImageController.setSwitchStyle(soundsOnButton, true);
+        soundsOnButton = new ImageView(ImageHandler.getSwitchImage(true));
+        soundsOnButton.setOnMouseClicked(e -> clickSoundsSwitch());
+        ImageHandler.setSwitchStyle(soundsOnButton, true);
 
-        itemsOnButton = new ImageView(ImageController.getSwitchImage(true));
-        itemsOnButton.setOnMouseClicked(e -> {
-            setItemsOn();
-            AudioController.buttonClicked();
-        });
-        ImageController.setSwitchStyle(itemsOnButton, true);
+        itemsOnButton = new ImageView(ImageHandler.getSwitchImage(true));
+        itemsOnButton.setOnMouseClicked(e -> clickItemsSwitch());
+        ImageHandler.setSwitchStyle(itemsOnButton, true);
+    }
 
-        easyButton = new ImageView(ImageController.getSwitchImage(false));
-        ImageController.setSwitchStyle(easyButton, false);
-        mediumButton = new ImageView(ImageController.getSwitchImage(true));
-        ImageController.setSwitchStyle(mediumButton, true);
-        hardButton = new ImageView(ImageController.getSwitchImage(false));
-        ImageController.setSwitchStyle(hardButton, false);
+    private static void initializeDifficultySwitches() {
+        easyButton = new ImageView(ImageHandler.getSwitchImage(false));
+        ImageHandler.setSwitchStyle(easyButton, false);
+        mediumButton = new ImageView(ImageHandler.getSwitchImage(true));
+        ImageHandler.setSwitchStyle(mediumButton, true);
+        hardButton = new ImageView(ImageHandler.getSwitchImage(false));
+        ImageHandler.setSwitchStyle(hardButton, false);
 
         easyButton.setOnMouseClicked(e -> {
-            ImageController.setDifficultyCheckboxImage(easyButton, mediumButton, hardButton);
-            Options.setDifficulty(Options.Difficulty.EASY);
-            AudioController.buttonClicked();
+            ImageHandler.setDifficultyCheckboxImage(easyButton, mediumButton, hardButton);
+            Options.clickOnDifficultyCheckbox(Options.Difficulty.EASY);
         });
         mediumButton.setOnMouseClicked(e -> {
-            ImageController.setDifficultyCheckboxImage(mediumButton, easyButton, hardButton);
-            Options.setDifficulty(Options.Difficulty.MEDIUM);
-            AudioController.buttonClicked();
+            ImageHandler.setDifficultyCheckboxImage(mediumButton, easyButton, hardButton);
+            Options.clickOnDifficultyCheckbox(Options.Difficulty.MEDIUM);
         });
         hardButton.setOnMouseClicked(e -> {
-            ImageController.setDifficultyCheckboxImage(hardButton, mediumButton, easyButton);
-            Options.setDifficulty(Options.Difficulty.HARD);
-            AudioController.buttonClicked();
+            ImageHandler.setDifficultyCheckboxImage(hardButton, mediumButton, easyButton);
+            Options.clickOnDifficultyCheckbox(Options.Difficulty.HARD);
         });
+    }
 
+    private static void initializeMenuItems() {
         items = new ImageView[10];
         for (int i = 0; i < items.length; i++) {
-            items[i] = new ImageView(ImageController.getMenuItemImage(i));
+            items[i] = new ImageView(ImageHandler.getMenuItemImage(i));
+            ImageHandler.setItemEffect(items[i]);
         }
-        ImageController.setItemEffect(items[0], 1);
-        ImageController.setItemEffect(items[1], -1);
-        ImageController.setItemEffect(items[2], 0);
-        ImageController.setItemEffect(items[3], 1);
-        ImageController.setItemEffect(items[4], 0);
-        ImageController.setItemEffect(items[5], 1);
-        ImageController.setItemEffect(items[6], -1);
-        ImageController.setItemEffect(items[7], 1);
-        ImageController.setItemEffect(items[8], -1);
-        ImageController.setItemEffect(items[9], 0);
     }
 
     public static void initStartButton(Text startText, Stage stage, Scene levelScene) {
-        startButton.setOnMouseClicked(e -> {
-            chooseLevel(startText, stage, levelScene);
-            AudioController.buttonClicked();
-        });
-        startText.setOnMouseClicked(e -> {
-            chooseLevel(startText, stage, levelScene);
-            AudioController.buttonClicked();
-        });
+        startButton.setOnMouseClicked(e -> clickChooseLevel(startText, stage, levelScene));
+        startText.setOnMouseClicked(e -> clickChooseLevel(startText, stage, levelScene));
         startText.setOnMouseEntered(e -> buttonHovered(startButton, startText, true));
         startButton.setOnMouseEntered(e -> buttonHovered(startButton, startText, true));
         startButton.setOnMouseExited(e -> buttonHovered(startButton, startText, false));
     }
 
-    private static void chooseLevel(Text startText, Stage stage, Scene levelScene) {
+    private static void clickChooseLevel(Text startText, Stage stage, Scene levelScene) {
+        AudioHandler.buttonClicked();
         buttonHovered(startButton, startText, false);
         stage.setScene(levelScene);
     }
 
     public static void initExitButton(Text exitText) {
         exitButton.setOnMouseClicked(e -> {
-            AudioController.finish();
+            AudioHandler.finish();
             System.exit(0);
         });
         exitText.setOnMouseClicked(e -> {
-            AudioController.finish();
+            AudioHandler.finish();
             System.exit(0);
         });
         exitButton.setOnMouseEntered(e -> buttonHovered(exitButton, exitText, true));
@@ -130,88 +111,65 @@ public abstract class ButtonController {
         exitButton.setOnMouseExited(e -> buttonHovered(exitButton, exitText, false));
     }
 
-    public static void initClassicLevel(Text levelText, Stage stage, Scene gameScene, Timeline gameTimeline, Timeline countdown) {
-        classicLevel.setOnMouseClicked(e -> {
-            startGame(classicLevel, levelText, stage, gameScene, gameTimeline, countdown);
-            AudioController.buttonClicked();
-        });
-        levelText.setOnMouseClicked(e -> {
-            startGame(classicLevel, levelText, stage, gameScene, gameTimeline, countdown);
-            AudioController.buttonClicked();
-        });
-        levelText.setOnMouseEntered(e -> buttonHovered(classicLevel, levelText, true));
-        classicLevel.setOnMouseEntered(e -> buttonHovered(classicLevel, levelText, true));
-        classicLevel.setOnMouseExited(e -> buttonHovered(classicLevel, levelText, false));
-    }
-
-    public static void initMagneticLevel(Text levelText, Stage stage, Scene gameScene, Timeline gameTimeline, Timeline countdown) {
-        magneticLevel.setOnMouseClicked(e -> {
-            startGame(magneticLevel, levelText, stage, gameScene, gameTimeline, countdown);
-            AudioController.buttonClicked();
-        });
-        levelText.setOnMouseClicked(e -> {
-            startGame(magneticLevel, levelText, stage, gameScene, gameTimeline, countdown);
-            AudioController.buttonClicked();
-        });
-        levelText.setOnMouseEntered(e -> buttonHovered(magneticLevel, levelText, true));
-        magneticLevel.setOnMouseEntered(e -> buttonHovered(magneticLevel, levelText, true));
-        magneticLevel.setOnMouseExited(e -> buttonHovered(magneticLevel, levelText, false));
-    }
-
-    public static void initSpaceLevel(Text levelText, Stage stage, Scene gameScene, Timeline gameTimeline, Timeline countdown) {
-        spaceLevel.setOnMouseClicked(e -> {
-            startGame(spaceLevel, levelText, stage, gameScene, gameTimeline, countdown);
-            AudioController.buttonClicked();
-        });
-        levelText.setOnMouseClicked(e -> {
-            startGame(spaceLevel, levelText, stage, gameScene, gameTimeline, countdown);
-            AudioController.buttonClicked();
-        });
-        levelText.setOnMouseEntered(e -> buttonHovered(spaceLevel, levelText, true));
-        spaceLevel.setOnMouseEntered(e -> buttonHovered(spaceLevel, levelText, true));
-        spaceLevel.setOnMouseExited(e -> buttonHovered(spaceLevel, levelText, false));
-    }
-
-    private static void startGame(ImageView currentButton, Text startText, Stage stage, Scene gameScene, Timeline gameTimeline, Timeline countdown) {
-        Game.resetScore();
-        buttonHovered(currentButton, startText, false);
-        if (currentButton == magneticLevel) {
-            Game.setMagneticLevel();
-        } else if (currentButton == classicLevel) {
-            Game.setClassicLevel();
-        } else if (currentButton == spaceLevel) {
-            Game.setSpaceLevel();
-        }
-        stage.setScene(gameScene);
-        countdown.play();
-        countdown.setOnFinished(e -> {
-            gameTimeline.play();
-            Game.resetCountdown();
-        });
-    }
-
     public static void initReturnButton(Text buttonText) {
-        returnBtn.setOnMouseClicked(e -> {
-            returnToMenu(returnBtn, buttonText);
-            AudioController.buttonClicked();
-        });
-        buttonText.setOnMouseClicked(e -> {
-            returnToMenu(returnBtn, buttonText);
-            AudioController.buttonClicked();
-        });
+        returnBtn.setOnMouseClicked(e -> clickReturnToMenu(returnBtn, buttonText));
+        buttonText.setOnMouseClicked(e -> clickReturnToMenu(returnBtn, buttonText));
         buttonText.setOnMouseEntered(e -> buttonHovered(returnBtn, buttonText, true));
         returnBtn.setOnMouseEntered(e -> buttonHovered(returnBtn, buttonText, true));
         returnBtn.setOnMouseExited(e -> buttonHovered(returnBtn, buttonText, false));
     }
 
-    private static void returnToMenu(ImageView currentButton, Text buttonText) {
-        buttonHovered(currentButton, buttonText, false);
+    public static void initClassicLevel(Text text, Stage stage, Scene scene, Timeline timeline, Timeline countdown) {
+        classicLevel.setOnMouseClicked(e -> clickStartGame(classicLevel, text, stage, scene, timeline, countdown));
+        text.setOnMouseClicked(e -> clickStartGame(classicLevel, text, stage, scene, timeline, countdown));
+        text.setOnMouseEntered(e -> buttonHovered(classicLevel, text, true));
+        classicLevel.setOnMouseEntered(e -> buttonHovered(classicLevel, text, true));
+        classicLevel.setOnMouseExited(e -> buttonHovered(classicLevel, text, false));
+    }
+
+    public static void initMagneticLevel(Text text, Stage stage, Scene scene, Timeline timeline, Timeline countdown) {
+        magneticLevel.setOnMouseClicked(e -> clickStartGame(magneticLevel, text, stage, scene, timeline, countdown));
+        text.setOnMouseClicked(e -> clickStartGame(magneticLevel, text, stage, scene, timeline, countdown));
+        text.setOnMouseEntered(e -> buttonHovered(magneticLevel, text, true));
+        magneticLevel.setOnMouseEntered(e -> buttonHovered(magneticLevel, text, true));
+        magneticLevel.setOnMouseExited(e -> buttonHovered(magneticLevel, text, false));
+    }
+
+    public static void initSpaceLevel(Text text, Stage stage, Scene scene, Timeline timeline, Timeline countdown) {
+        spaceLevel.setOnMouseClicked(e -> clickStartGame(spaceLevel, text, stage, scene, timeline, countdown));
+        text.setOnMouseClicked(e -> clickStartGame(spaceLevel, text, stage, scene, timeline, countdown));
+        text.setOnMouseEntered(e -> buttonHovered(spaceLevel, text, true));
+        spaceLevel.setOnMouseEntered(e -> buttonHovered(spaceLevel, text, true));
+        spaceLevel.setOnMouseExited(e -> buttonHovered(spaceLevel, text, false));
+    }
+
+    private static void clickStartGame(ImageView button, Text text, Stage stage, Scene scene, Timeline timeline, Timeline countdown) {
+        AudioHandler.buttonClicked();
+        Game.globalReset();
+        buttonHovered(button, text, false);
+        if (button == magneticLevel)
+            Game.setMagneticLevel();
+        else if (button == classicLevel)
+            Game.setClassicLevel();
+        else if (button == spaceLevel)
+            Game.setSpaceLevel();
+        stage.setScene(scene);
+        countdown.play();
+        countdown.setOnFinished(e -> {
+            timeline.play();
+            Game.resetCountdown();
+        });
+    }
+
+    private static void clickReturnToMenu(ImageView button, Text text) {
+        AudioHandler.buttonClicked();
+        buttonHovered(button, text, false);
         Game.returnToMenu();
     }
 
     private static void buttonHovered(ImageView button, Text text, boolean hovered) {
-        ImageController.setButtonHoveredImage(button, hovered);
-        TextController.setHovered(text, hovered);
+        ImageHandler.setButtonHoveredImage(button, hovered);
+        TextHandler.setHovered(text, hovered);
     }
 
     //Getters
@@ -268,24 +226,26 @@ public abstract class ButtonController {
     }
 
     //Setters
-    private static void setMusicOn() {
-        musicOn = !musicOn;
-        ImageController.setSwitchStyle(musicOnButton, musicOn);
-        if (musicOn)
-            AudioController.playMusic();
+    private static void clickMusicSwitch() {
+        Options.setMusicOn(!Options.isMusicOn());
+        ImageHandler.setSwitchStyle(musicOnButton, Options.isMusicOn());
+        if (Options.isMusicOn())
+            AudioHandler.playMusic();
         else
-            AudioController.stopMusic();
+            AudioHandler.stopMusic();
+        AudioHandler.buttonClicked();
     }
 
-    private static void setSoundsOn() {
-        soundsOn = !soundsOn;
-        AudioController.setSoundsOn(soundsOn);
-        ImageController.setSwitchStyle(soundsOnButton, soundsOn);
+    private static void clickSoundsSwitch() {
+        Options.setSoundsOn(!Options.isSoundsOn());
+        AudioHandler.setSoundsOn(Options.isSoundsOn());
+        ImageHandler.setSwitchStyle(soundsOnButton, Options.isSoundsOn());
+        AudioHandler.buttonClicked();
     }
 
-    private static void setItemsOn() {
-        itemsOn = !itemsOn;
-        ImageController.setSwitchStyle(itemsOnButton, itemsOn);
-        Options.setItemsOn(itemsOn);
+    private static void clickItemsSwitch() {
+        Options.setItemsOn(!Options.isItemsOn());
+        ImageHandler.setSwitchStyle(itemsOnButton, Options.isItemsOn());
+        AudioHandler.buttonClicked();
     }
 }

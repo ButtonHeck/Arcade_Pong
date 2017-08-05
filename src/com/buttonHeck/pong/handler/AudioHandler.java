@@ -1,55 +1,54 @@
-package com.buttonHeck.pong.controllers;
+package com.buttonHeck.pong.handler;
 
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
 import org.lwjgl.openal.AL;
-import org.lwjgl.openal.AL10;
 import org.newdawn.slick.SlickException;
 import org.newdawn.slick.Sound;
-import org.newdawn.slick.openal.WaveData;
 
-public abstract class AudioController {
+public abstract class AudioHandler {
 
     private static Sound batReflection, blackhole, buttonClicked, screenReflection,
             itemPicked, pistolPicked, shot, timeStopper, result, countdown;
     private static boolean soundsEnabled = true;
-    private static int music;
+    private static MediaPlayer music;
 
     static {
         try {
-            batReflection = new Sound(AudioController.class.getResource("/audio/batReflection.ogg"));
-            blackhole = new Sound(AudioController.class.getResource("/audio/blackhole.ogg"));
-            buttonClicked = new Sound(AudioController.class.getResource("/audio/buttonClicked.ogg"));
-            itemPicked = new Sound(AudioController.class.getResource("/audio/itemPicked.ogg"));
-            pistolPicked = new Sound(AudioController.class.getResource("/audio/pistolPicked.ogg"));
-            timeStopper = new Sound(AudioController.class.getResource("/audio/timeStopper.ogg"));
-            result = new Sound(AudioController.class.getResource("/audio/result.ogg"));
-            screenReflection = new Sound(AudioController.class.getResource("/audio/screenReflection.ogg"));
-            countdown = new Sound(AudioController.class.getResource("/audio/countdown.ogg"));
-            shot = new Sound(AudioController.class.getResource("/audio/shot.ogg"));
+            batReflection = new Sound(AudioHandler.class.getResource("/audio/batReflection.ogg"));
+            blackhole = new Sound(AudioHandler.class.getResource("/audio/blackhole.ogg"));
+            buttonClicked = new Sound(AudioHandler.class.getResource("/audio/buttonClicked.ogg"));
+            itemPicked = new Sound(AudioHandler.class.getResource("/audio/itemPicked.ogg"));
+            pistolPicked = new Sound(AudioHandler.class.getResource("/audio/pistolPicked.ogg"));
+            timeStopper = new Sound(AudioHandler.class.getResource("/audio/timeStopper.ogg"));
+            result = new Sound(AudioHandler.class.getResource("/audio/result.ogg"));
+            screenReflection = new Sound(AudioHandler.class.getResource("/audio/screenReflection.ogg"));
+            countdown = new Sound(AudioHandler.class.getResource("/audio/countdown.ogg"));
+            shot = new Sound(AudioHandler.class.getResource("/audio/shot.ogg"));
+            initializeMusic();
         } catch (SlickException e) {
             e.printStackTrace();
         }
-        WaveData musicData = WaveData.create(AudioController.class.getResource("/audio/music.wav"));
-        int musicBuffer = AL10.alGenBuffers();
-        AL10.alBufferData(musicBuffer, musicData.format, musicData.data, musicData.samplerate);
-        musicData.dispose();
-        music = AL10.alGenSources();
-        AL10.alSourcei(music, AL10.AL_BUFFER, musicBuffer);
+    }
+
+    private static void initializeMusic() {
+        Media musicFile = new Media(AudioHandler.class.getResource("/audio/music.mp3").toExternalForm());
+        music = new MediaPlayer(musicFile);
+        music.setCycleCount(MediaPlayer.INDEFINITE);
+        music.setVolume(0.4);
     }
 
     public static void playMusic() {
-        AL10.alSourcef(music, AL10.AL_GAIN, 0.4f);
-        AL10.alSourcei(music, AL10.AL_LOOPING, 1);
-        AL10.alSourcePlay(music);
+        music.play();
     }
 
     static void stopMusic() {
-        AL10.alSourceStop(music);
+        music.stop();
     }
 
     public static void batReflection() {
-        if (soundsEnabled) {
+        if (soundsEnabled)
             batReflection.play((float) (Math.random() * 0.2 + 0.8), 1.0f);
-        }
     }
 
     public static void blackhole() {
@@ -57,7 +56,7 @@ public abstract class AudioController {
             blackhole.play();
     }
 
-    static void buttonClicked() {
+    public static void buttonClicked() {
         if (soundsEnabled)
             buttonClicked.play((float) (Math.random() * 0.1 + 0.9), 1.0f);
     }

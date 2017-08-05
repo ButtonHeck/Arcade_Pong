@@ -4,19 +4,22 @@ import com.buttonHeck.pong.Game;
 import com.buttonHeck.pong.handler.ImageHandler;
 import javafx.scene.image.Image;
 
-public class BallSpeedDown extends Item {
+public class BallSpeedItem extends Item {
 
-    BallSpeedDown(Image image, int ordinal) {
+    private final boolean speedUp;
+
+    BallSpeedItem(Image image, int ordinal, boolean speedUp) {
         super(image, ordinal);
+        this.speedUp = speedUp;
     }
 
     @Override
     public void applyAction() {
-        Game.ItemHandler.setBallSpeedUpScale(0.88);
+        Game.ItemHandler.setBallSpeedScale(speedUp ? 1.12 : 0.88);
     }
 
     @Override
     public Item copy() {
-        return new BallSpeedDown(ImageHandler.getItemImage(8), 8);
+        return new BallSpeedItem(ImageHandler.getItemImage(speedUp ? 7 : 8), speedUp ? 7 : 8, speedUp);
     }
 }

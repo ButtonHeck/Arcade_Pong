@@ -1,4 +1,4 @@
-package com.buttonHeck.pong.controllers;
+package com.buttonHeck.pong.handler;
 
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
@@ -14,19 +14,19 @@ import javafx.util.Duration;
 import static com.buttonHeck.pong.Game.HEIGHT;
 import static com.buttonHeck.pong.Game.WIDTH;
 
-public abstract class TextController {
+public abstract class TextHandler {
 
     private final static Font FONT = Font.font("Dialog", 28);
     private final static Font COUNTDOWN_FONT = new Font("Arial", 96 * 4);
     private final static Font RESULT_FONT = new Font("Arial", 96);
-    private static Light.Point lightPoint = new Light.Point(384, 96, 80, Color.WHITE);
-    private static final Lighting LIGHTING = new Lighting(new Light.Point(96, 96, 80, Color.WHITE));
-    private static final Lighting MESSAGE_LIGHTING = new Lighting(lightPoint);
-    private static final boolean DIFFUSE_DIRECTION_UP[] = new boolean[]{false};
+    private final static Light.Point LIGHT_POINT = new Light.Point(384, 96, 80, Color.WHITE);
+    private final static Lighting LIGHTING = new Lighting(new Light.Point(96, 96, 80, Color.WHITE));
+    private final static Lighting MESSAGE_LIGHTING = new Lighting(LIGHT_POINT);
+    private final static boolean DIFFUSE_DIRECTION_UP[] = new boolean[]{false};
     private final static GaussianBlur TEXT_EFFECT = new GaussianBlur(1);
-    private static Timeline lightingAnimation = new Timeline();
+    private static Timeline resultLightAnimation = new Timeline();
 
-    private final static Text itemsTexts[] = new Text[]{
+    private final static Text ITEMS_TEXTS[] = new Text[]{
             new Text("Increase bat size"),
             new Text("Decrease bat size"),
             new Text("Stop time (2s, press E)"),
@@ -37,7 +37,7 @@ public abstract class TextController {
             new Text("Increase ball speed"),
             new Text("Decrease ball speed"),
             new Text("x3 Pistol (Press SPACE)")};
-    private static final Text texts[] = new Text[]{
+    private static final Text BUTTONS_TEXTS[] = new Text[]{
             new Text("START!"),
             new Text("EXIT"),
             new Text("Music"),
@@ -47,7 +47,7 @@ public abstract class TextController {
             new Text("Easy"),
             new Text("Medium"),
             new Text("Hard"),};
-    private static final Text levelTexts[] = new Text[]{
+    private static final Text LEVEL_TEXTS[] = new Text[]{
             new Text("Classic"),
             new Text("Magnetic"),
             new Text("Space"),
@@ -63,31 +63,16 @@ public abstract class TextController {
     private static Text authorText = new Text(WIDTH / 1.35, HEIGHT - 10, "created by ButtonHeck, 2017");
 
     static {
-        applySettings(texts);
-        applySettings(itemsTexts);
-        applySettings(levelTexts);
-        authorText.setFill(Color.WHITE);
-        authorText.setFont(new Font("Arial", 16));
-        countdown.setFill(Color.WHITE);
-        countdown.setFont(COUNTDOWN_FONT);
-        countdown.setEffect(LIGHTING);
+        applySettings(BUTTONS_TEXTS);
+        applySettings(ITEMS_TEXTS);
+        applySettings(LEVEL_TEXTS);
+        initializeAuthorText();
+        initializeCountdownText();
         MESSAGE_LIGHTING.setDiffuseConstant(1.9);
-        youWin.setFont(RESULT_FONT);
-        youWin.setFill(Color.LAWNGREEN);
-        youWin.setEffect(MESSAGE_LIGHTING);
-        youLose.setFont(RESULT_FONT);
-        youLose.setFill(Color.ORANGERED);
-        youLose.setEffect(MESSAGE_LIGHTING);
-        timeStopDurationText.setFill(Color.WHITE);
-        timeStopDurationText.setFont(new Font("Monospaced", 24));
-
-        KeyFrame lightingFrame = new KeyFrame(Duration.millis(10), event -> {
-            lightPoint.setX(lightPoint.getX() + (DIFFUSE_DIRECTION_UP[0] ? 3 : -3));
-            if (lightPoint.getX() >= 700 || lightPoint.getX() <= 100)
-                DIFFUSE_DIRECTION_UP[0] = !DIFFUSE_DIRECTION_UP[0];
-        });
-        lightingAnimation.getKeyFrames().add(lightingFrame);
-        lightingAnimation.setCycleCount(Animation.INDEFINITE);
+        initializeResultText(youWin, Color.LAWNGREEN);
+        initializeResultText(youLose, Color.ORANGERED);
+        initializeResultLightingAnimation();
+        initializeTimeStopDurationText();
     }
 
     private static void applySettings(Text[] texts) {
@@ -98,16 +83,50 @@ public abstract class TextController {
         }
     }
 
-    public static Text[] getItemsTexts() {
-        return itemsTexts;
+    private static void initializeAuthorText() {
+        authorText.setFill(Color.WHITE);
+        authorText.setFont(new Font("Arial", 16));
     }
 
-    public static Text[] getTexts() {
-        return texts;
+    private static void initializeCountdownText() {
+        countdown.setFill(Color.WHITE);
+        countdown.setFont(COUNTDOWN_FONT);
+        countdown.setEffect(LIGHTING);
+    }
+
+    private static void initializeResultText(Text resultText, Color messageColor) {
+        resultText.setFont(RESULT_FONT);
+        resultText.setFill(messageColor);
+        resultText.setEffect(MESSAGE_LIGHTING);
+    }
+
+    private static void initializeTimeStopDurationText() {
+        timeStopDurationText.setFill(Color.WHITE);
+        timeStopDurationText.setFont(new Font("Monospaced", 24));
+    }
+
+    private static void initializeResultLightingAnimation() {
+        KeyFrame lightingFrame = new KeyFrame(Duration.millis(10), event -> {
+            LIGHT_POINT.setX(LIGHT_POINT.getX() + (DIFFUSE_DIRECTION_UP[0] ? 3 : -3));
+            if (LIGHT_POINT.getX() >= 700 || LIGHT_POINT.getX() <= 100)
+                DIFFUSE_DIRECTION_UP[0] = !DIFFUSE_DIRECTION_UP[0];
+        });
+        resultLightAnimation.getKeyFrames().add(lightingFrame);
+        resultLightAnimation.setCycleCount(Animation.INDEFINITE);
+    }
+
+    //Getters and Setters
+
+    public static Text[] getItemsTexts() {
+        return ITEMS_TEXTS;
+    }
+
+    public static Text[] getButtonsTexts() {
+        return BUTTONS_TEXTS;
     }
 
     public static Text[] getLevelTexts() {
-        return levelTexts;
+        return LEVEL_TEXTS;
     }
 
     static void setHovered(Text text, boolean hovered) {
@@ -122,8 +141,8 @@ public abstract class TextController {
         return win ? youWin : youLose;
     }
 
-    public static Timeline getResultAnimation() {
-        return lightingAnimation;
+    public static Timeline getResultLightAnimation() {
+        return resultLightAnimation;
     }
 
     public static Text getTimeStopDurationText() {

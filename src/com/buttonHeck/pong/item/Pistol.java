@@ -1,4 +1,4 @@
-package com.buttonHeck.pong.items;
+package com.buttonHeck.pong.item;
 
 import com.buttonHeck.pong.Game;
 import com.buttonHeck.pong.handler.ImageHandler;

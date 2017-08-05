@@ -4,19 +4,22 @@ import com.buttonHeck.pong.Game;
 import com.buttonHeck.pong.handler.ImageHandler;
 import javafx.scene.image.Image;
 
-public class BatSizeDecrease extends Item {
+public class BatSizeItem extends Item {
 
-    BatSizeDecrease(Image image, int ordinal) {
+    private final boolean sizeUp;
+
+    BatSizeItem(Image image, int ordinal, boolean sizeUp) {
         super(image, ordinal);
+        this.sizeUp = sizeUp;
     }
 
     @Override
     public void applyAction() {
-        Game.ItemHandler.batResize(false);
+        Game.ItemHandler.batResize(sizeUp);
     }
 
     @Override
     public Item copy() {
-        return new BatSizeDecrease(ImageHandler.getItemImage(1), 1);
+        return new BatSizeItem(ImageHandler.getItemImage(sizeUp ? 0 : 1), sizeUp ? 0 : 1, sizeUp);
     }
 }

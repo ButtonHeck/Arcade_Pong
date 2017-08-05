@@ -1,10 +1,10 @@
 package com.buttonHeck.pong;
 
-import com.buttonHeck.pong.controllers.AudioController;
-import com.buttonHeck.pong.controllers.ButtonController;
-import com.buttonHeck.pong.controllers.ImageController;
-import com.buttonHeck.pong.controllers.TextController;
-import com.buttonHeck.pong.items.Item;
+import com.buttonHeck.pong.handler.AudioHandler;
+import com.buttonHeck.pong.handler.ButtonHandler;
+import com.buttonHeck.pong.handler.ImageHandler;
+import com.buttonHeck.pong.handler.TextHandler;
+import com.buttonHeck.pong.item.Item;
 import com.buttonHeck.pong.util.Options;
 import com.buttonHeck.pong.ai.AI;
 import javafx.animation.Animation;
@@ -39,6 +39,7 @@ public class Game extends Application {
 
     //Application variables
     public static final int WIDTH = 1024, HEIGHT = WIDTH * 3 / 4, SIZE_SCALE = 1;
+    public static final double DEFAULT_PADDLE_HEIGHT = HEIGHT / 8;
     private static final double BALL_REFLECT_RATIO = 38.5;
     private static Stage stage;
     private static boolean upKey, downKey, shiftKey;
@@ -48,15 +49,15 @@ public class Game extends Application {
     private static Text resultMessageWin, resultMessageLose;
     private static Timeline countdownTimeline;
     private static Text countdownText;
-    private static final int countdownNumber[] = {3};
+    private static final int countdownOrdinal[] = {3};
     private static Timeline countdownTextTimeline;
     private static final int countdownFontSize[] = {96 * 4};
     private static Point2D screenCenter;
 
     static {
-        resultMessageWin = TextController.getResultMessage(true);
-        resultMessageLose = TextController.getResultMessage(false);
-        countdownText = TextController.getCountdown();
+        resultMessageWin = TextHandler.getResultMessage(true);
+        resultMessageLose = TextHandler.getResultMessage(false);
+        countdownText = TextHandler.getCountdown();
         allocator = new Allocator();
         random = new Random();
         countdownTimeline = new Timeline();
@@ -70,34 +71,33 @@ public class Game extends Application {
     private static Canvas itemsBackground = new Canvas(WIDTH * 0.9, HEIGHT / 1.65);
     private static ImageView startBtn, exitBtn, musicSwc, soundsSwc, itemsSwc, easyBtn, mediumBtn, hardBtn;
     private static ImageView[] menuItems = new ImageView[10];
-    private static Text[] menuTexts = TextController.getTexts();
-    private static Text[] itemsTexts = TextController.getItemsTexts();
-    private static Text author = TextController.getAuthorText();
+    private static Text[] menuTexts = TextHandler.getButtonsTexts();
+    private static Text[] itemsTexts = TextHandler.getItemsTexts();
+    private static Text author = TextHandler.getAuthorText();
 
     //Game scene variables
     static Scene gameScene;
     private static VBox gameRoot = new VBox();
-    private static Group gameGroup = new Group();
+    private static Group gamePanel = new Group();
     private static Canvas gameCanvas, infoCanvas;
     private static double winRateCoords[] = new double[22];
     private static Timeline gameTimeline = new Timeline();
-    private static final double BAT_HEIGHT = HEIGHT / 8;
-    private static GaussianBlur blur = new GaussianBlur(2);
+    private static final GaussianBlur BLUR = new GaussianBlur(2);
     private static ImageView ball;
     private static ImageView[] ballTail;
-    private static int ballTailIndex, ballTailUpdate;
+    private static int ballTailIndex, ballTailFrameUpdate;
     private static ImageView magnetHigh, magnetLow;
     private static ImageView blackhole1, blackhole2;
 
     //Game logic variables
     private static boolean ballLeft, ballUp;
     private static double ballDX = 1.5, ballDY = 1.075;
-    private static double speedUpRatio = 1.0; //changes when ball speed up/down item is picked
+    private static double ballSpeedRatio = 1.0; //changes when ball speed up/down item is picked
     private static boolean batsSwapped;
     private static boolean playersBallTurn = true;
     private static boolean magnetHighLeft = true, magnetLowLeft = false;
-    private static boolean[] itemsInGame = new boolean[10];
-    private static ArrayList<Item> itemsInGroup = new ArrayList<>();
+    private static boolean[] itemsPresentInGame = new boolean[10];
+    private static ArrayList<Item> items = new ArrayList<>();
     private static double playerSpeedScale, aiSpeedScale;
     //used in space level
     private static double blackholeRadius = 210;
@@ -106,7 +106,7 @@ public class Game extends Application {
 
     //Level chooser scene
     private static Scene levelChooserScene;
-    private static Text[] levelTexts = TextController.getLevelTexts();
+    private static Text[] levelTexts = TextHandler.getLevelTexts();
     private static ImageView classicLevelBtn, magneticLevelBtn, spaceLevelBtn, returnBtn;
 
     //Player variables
@@ -114,16 +114,16 @@ public class Game extends Application {
     private static double playerBasicSpeed = ballDY * 1.2;
     private static int missesLeft;
     private static Image score[] = new Image[]{
-            ImageController.getSwitchImage(true),
-            ImageController.getSwitchImage(true),
-            ImageController.getSwitchImage(true),
-            ImageController.getSwitchImage(true),
-            ImageController.getSwitchImage(true)
+            ImageHandler.getSwitchImage(true),
+            ImageHandler.getSwitchImage(true),
+            ImageHandler.getSwitchImage(true),
+            ImageHandler.getSwitchImage(true),
+            ImageHandler.getSwitchImage(true)
     };
     private static ArrayList<Image> itemsPicked;
     private static boolean hasTimeStopper, timeStopped;
     private static double timeStopDuration = 2;
-    private static Text timeStopDurationText = TextController.getTimeStopDurationText();
+    private static Text timeStopDurationText = TextHandler.getTimeStopDurationText();
     private static boolean hasPistol;
     private static int pistolsLeft;
     private static Circle playerShots[] = new Circle[]{
@@ -143,8 +143,8 @@ public class Game extends Application {
     @Override
     public void start(Stage stage) throws Exception {
         Game.stage = stage;
-        initObjects();
-        initGameCanvases();
+        initializeObjects();
+        initializeGameCanvases();
         allocator.allocateObjects();
         buildGameContentTree();
         initializeTimelines();
@@ -152,65 +152,76 @@ public class Game extends Application {
         allocator.allocateLevelButtons();
         buildMenuContentTree();
         resetCountdown();
-        resetScore();
+        globalReset();
         launchGame();
         initializeKeyboardHandler();
-        AudioController.playMusic();
+        AudioHandler.playMusic();
     }
 
-    private void initObjects() {
-        player = new Rectangle(8, BAT_HEIGHT);
+    private void initializeObjects() {
+        initializePlayerPaddle();
+        initializeAiPaddle();
+        initializeBall();
+        initializeAdditionalObjects();
+        for (int i = 0; i < menuItems.length; i++)
+            menuItems[i] = ButtonHandler.getItem(i);
+        initializeMenuButtons();
+        initializeLevelChooseScene();
+    }
+
+    private void initializePlayerPaddle() {
+        player = new Rectangle(8, DEFAULT_PADDLE_HEIGHT);
         player.setFill(Color.LIGHTBLUE);
-        player.setEffect(blur);
-        ai = new AI(8, BAT_HEIGHT);
-        ai.setFill(Color.TOMATO.brighter());
+        player.setEffect(BLUR);
         itemsPicked = new ArrayList<>();
+    }
+
+    private void initializeAiPaddle() {
+        ai = new AI(8, DEFAULT_PADDLE_HEIGHT);
         aiShots = ai.getAiShots();
-        ball = new ImageView(ImageController.getBallImage());
+    }
+
+    private void initializeBall() {
+        ball = new ImageView(ImageHandler.getBallImage());
         ballTail = new ImageView[]{
-                new ImageView(ImageController.getBallImage()),
-                new ImageView(ImageController.getBallImage()),
-                new ImageView(ImageController.getBallImage()),
-                new ImageView(ImageController.getBallImage()),
-                new ImageView(ImageController.getBallImage())
+                new ImageView(ImageHandler.getBallImage()),
+                new ImageView(ImageHandler.getBallImage()),
+                new ImageView(ImageHandler.getBallImage()),
+                new ImageView(ImageHandler.getBallImage()),
+                new ImageView(ImageHandler.getBallImage())
         };
         ballTailIndex = 0;
-        ballTailUpdate = 0;
-        for (ImageView tailPiece : ballTail) {
+        ballTailFrameUpdate = 0;
+        for (ImageView tailPiece : ballTail)
             tailPiece.setOpacity(0.1);
-        }
+    }
 
-        magnetHigh = new ImageView(ImageController.getMagnetImage());
-        magnetLow = new ImageView(ImageController.getMagnetImage());
+    private void initializeAdditionalObjects() {
+        magnetHigh = new ImageView(ImageHandler.getMagnetImage());
+        magnetLow = new ImageView(ImageHandler.getMagnetImage());
         magnetLow.getTransforms().add(new Rotate(180));
-
-        blackhole1 = new ImageView(ImageController.getBlackholeImage());
-        blackhole1.setEffect(blur);
-        blackhole2 = new ImageView(ImageController.getBlackholeImage());
-        blackhole2.setEffect(blur);
-
-        for (int i = 0; i < menuItems.length; i++)
-            menuItems[i] = ButtonController.getItem(i);
-        initMenuObjects();
-        initSelectObjects();
+        blackhole1 = new ImageView(ImageHandler.getBlackholeImage());
+        blackhole1.setEffect(BLUR);
+        blackhole2 = new ImageView(ImageHandler.getBlackholeImage());
+        blackhole2.setEffect(BLUR);
     }
 
-    private void initMenuObjects() {
-        startBtn = ButtonController.getStartButton();
-        exitBtn = ButtonController.getExitButton();
-        musicSwc = ButtonController.getMusicSwitch();
-        soundsSwc = ButtonController.getSoundsSwitch();
-        itemsSwc = ButtonController.getItemsSwitch();
-        easyBtn = ButtonController.getEasyButton();
-        mediumBtn = ButtonController.getMediumButton();
-        hardBtn = ButtonController.getHardButton();
+    private void initializeMenuButtons() {
+        startBtn = ButtonHandler.getStartButton();
+        exitBtn = ButtonHandler.getExitButton();
+        musicSwc = ButtonHandler.getMusicSwitch();
+        soundsSwc = ButtonHandler.getSoundsSwitch();
+        itemsSwc = ButtonHandler.getItemsSwitch();
+        easyBtn = ButtonHandler.getEasyButton();
+        mediumBtn = ButtonHandler.getMediumButton();
+        hardBtn = ButtonHandler.getHardButton();
     }
 
-    private void initSelectObjects() {
-        classicLevelBtn = ButtonController.getClassicLevelBtn();
-        magneticLevelBtn = ButtonController.getMagneticLevelBtn();
-        spaceLevelBtn = ButtonController.getSpaceLevelBtn();
-        returnBtn = ButtonController.getReturnBtn();
+    private void initializeLevelChooseScene() {
+        classicLevelBtn = ButtonHandler.getClassicLevelBtn();
+        magneticLevelBtn = ButtonHandler.getMagneticLevelBtn();
+        spaceLevelBtn = ButtonHandler.getSpaceLevelBtn();
+        returnBtn = ButtonHandler.getReturnBtn();
         Group levelRoot = new Group();
         levelRoot.getChildren().addAll(classicLevelBtn, magneticLevelBtn, spaceLevelBtn, returnBtn);
         for (Text text : levelTexts)
@@ -218,91 +229,68 @@ public class Game extends Application {
         levelChooserScene = new Scene(levelRoot, WIDTH, HEIGHT, Color.BLACK);
     }
 
-    private void initGameCanvases() {
+    private void initializeGameCanvases() {
+        initializeGameCanvas();
+        initializeMenuItemsCanvas();
+        initializeInfoCanvas();
+        renewWinratePanel();
+    }
+
+    private void initializeGameCanvas() {
         gameCanvas = new Canvas(WIDTH * SIZE_SCALE, HEIGHT * SIZE_SCALE);
         gameCanvas.getGraphicsContext2D().setFill(Color.BLACK);
         gameCanvas.getGraphicsContext2D().fillRect(0, 0, widthOf(gameCanvas), heightOf(gameCanvas));
-        infoCanvas = new Canvas(WIDTH * SIZE_SCALE, HEIGHT * SIZE_SCALE / 15);
-        infoCanvas.getGraphicsContext2D().setFill(Color.BLACK.brighter());
-        infoCanvas.getGraphicsContext2D().fillRect(0, 0, infoCanvas.getWidth(), infoCanvas.getHeight());
+    }
+
+    private void initializeMenuItemsCanvas() {
         itemsBackground.setOpacity(0.3);
         itemsBackground.getGraphicsContext2D().setFill(Color.DARKSLATEBLUE);
         itemsBackground.getGraphicsContext2D().fillRect(0, 0, widthOf(itemsBackground), heightOf(itemsBackground));
         itemsBackground.setEffect(new GaussianBlur(20));
-        renewInfo();
     }
 
-    private static void renewInfo() {
+    private void initializeInfoCanvas() {
+        infoCanvas = new Canvas(WIDTH * SIZE_SCALE, HEIGHT * SIZE_SCALE / 15);
+        infoCanvas.getGraphicsContext2D().setFill(Color.BLACK.brighter());
+        infoCanvas.getGraphicsContext2D().fillRect(0, 0, infoCanvas.getWidth(), infoCanvas.getHeight());
+    }
+
+    static void renewWinratePanel() {
+        renewWinrateCoordinates();
+        renewWinrateIndicators();
+    }
+
+    private static void renewWinrateCoordinates() {
         if (!batsSwapped) {
-            winRateCoords[0] = 10;
-            winRateCoords[1] = 55;
-            winRateCoords[2] = 100;
-            winRateCoords[3] = 145;
-            winRateCoords[4] = 190;
-            winRateCoords[5] = 235;
-            winRateCoords[6] = 280;
-            winRateCoords[7] = 325;
-            winRateCoords[8] = 370;
-            winRateCoords[9] = 415;
-            winRateCoords[10] = 460;
-            winRateCoords[11] = widthOf(infoCanvas) - 50;
-            winRateCoords[12] = widthOf(infoCanvas) - 95;
-            winRateCoords[13] = widthOf(infoCanvas) - 140;
-            winRateCoords[14] = widthOf(infoCanvas) - 185;
-            winRateCoords[15] = widthOf(infoCanvas) - 230;
-            winRateCoords[16] = widthOf(infoCanvas) - 275;
-            winRateCoords[17] = widthOf(infoCanvas) - 320;
-            winRateCoords[18] = widthOf(infoCanvas) - 365;
-            winRateCoords[19] = widthOf(infoCanvas) - 410;
-            winRateCoords[20] = widthOf(infoCanvas) - 455;
-            winRateCoords[21] = widthOf(infoCanvas) - 500;
+            for (int i = 0; i < 11; i++)
+                winRateCoords[i] = 10 + i * 45;
+            for (int i = 11; i < 22; i++)
+                winRateCoords[i] = widthOf(infoCanvas) - 50 - i * 45;
         } else {
-            winRateCoords[11] = 10;
-            winRateCoords[12] = 55;
-            winRateCoords[13] = 100;
-            winRateCoords[14] = 145;
-            winRateCoords[15] = 190;
-            winRateCoords[16] = 235;
-            winRateCoords[17] = 280;
-            winRateCoords[18] = 325;
-            winRateCoords[19] = 370;
-            winRateCoords[20] = 415;
-            winRateCoords[21] = 460;
-            winRateCoords[0] = widthOf(infoCanvas) - 50;
-            winRateCoords[1] = widthOf(infoCanvas) - 95;
-            winRateCoords[2] = widthOf(infoCanvas) - 140;
-            winRateCoords[3] = widthOf(infoCanvas) - 185;
-            winRateCoords[4] = widthOf(infoCanvas) - 230;
-            winRateCoords[5] = widthOf(infoCanvas) - 275;
-            winRateCoords[6] = widthOf(infoCanvas) - 320;
-            winRateCoords[7] = widthOf(infoCanvas) - 365;
-            winRateCoords[8] = widthOf(infoCanvas) - 410;
-            winRateCoords[9] = widthOf(infoCanvas) - 455;
-            winRateCoords[10] = widthOf(infoCanvas) - 500;
+            for (int i = 0; i < 11; i++)
+                winRateCoords[i] = widthOf(infoCanvas) - 50 - i * 45;
+            for (int i = 11; i < 22; i++)
+                winRateCoords[i] = 10 + i * 45;
         }
+    }
+
+    private static void renewWinrateIndicators() {
         infoCanvas.getGraphicsContext2D().setFill(Color.BLACK.brighter());
         infoCanvas.getGraphicsContext2D().fillRect(235, 0, 512 + 45, infoCanvas.getHeight());
         for (int i = 0; i < itemsPicked.size(); i++)
             infoCanvas.getGraphicsContext2D().drawImage(itemsPicked.get(i), winRateCoords[i + 5], 5);
         for (int i = 0; i < ai.getItemsPicked().size(); i++)
             infoCanvas.getGraphicsContext2D().drawImage(ai.getItemsPicked().get(i), winRateCoords[i + 16], 5);
-        infoCanvas.getGraphicsContext2D().drawImage(score[0], winRateCoords[0], 5);
-        infoCanvas.getGraphicsContext2D().drawImage(score[1], winRateCoords[1], 5);
-        infoCanvas.getGraphicsContext2D().drawImage(score[2], winRateCoords[2], 5);
-        infoCanvas.getGraphicsContext2D().drawImage(score[3], winRateCoords[3], 5);
-        infoCanvas.getGraphicsContext2D().drawImage(score[4], winRateCoords[4], 5);
-        infoCanvas.getGraphicsContext2D().drawImage(ai.getScore()[0], winRateCoords[11], 5);
-        infoCanvas.getGraphicsContext2D().drawImage(ai.getScore()[1], winRateCoords[12], 5);
-        infoCanvas.getGraphicsContext2D().drawImage(ai.getScore()[2], winRateCoords[13], 5);
-        infoCanvas.getGraphicsContext2D().drawImage(ai.getScore()[3], winRateCoords[14], 5);
-        infoCanvas.getGraphicsContext2D().drawImage(ai.getScore()[4], winRateCoords[15], 5);
+        for (int i = 0; i < 5; i++)
+            infoCanvas.getGraphicsContext2D().drawImage(score[i], winRateCoords[i], 5);
+        for (int i = 0; i < 5; i++)
+            infoCanvas.getGraphicsContext2D().drawImage(ai.getScore()[i], winRateCoords[i + 11], 5);
     }
 
     private void buildGameContentTree() {
-        gameGroup.getChildren().addAll(gameCanvas, ball, player, ai);
-        for (ImageView tailPiece : ballTail)
-            gameGroup.getChildren().add(tailPiece);
-        gameRoot.getChildren().add(gameGroup);
+        gamePanel.getChildren().addAll(gameCanvas, ball, player, ai);
+        gamePanel.getChildren().addAll(ballTail);
+        gameRoot.getChildren().add(gamePanel);
         gameRoot.getChildren().add(infoCanvas);
         gameScene = new Scene(gameRoot, WIDTH, HEIGHT + heightOf(infoCanvas));
     }
@@ -316,10 +304,10 @@ public class Game extends Application {
         KeyFrame gameFrame = new KeyFrame(Duration.seconds(updateSpeed), event -> {
             if (aiTimeStopEvent()) return;
             playerMoveEvent();
-            updateEvent();
-            if (gameGroup.getChildren().contains(magnetHigh))
+            tickFrame();
+            if (gamePanel.getChildren().contains(magnetHigh))
                 magnetEvent();
-            if (gameGroup.getChildren().contains(blackhole1))
+            if (gamePanel.getChildren().contains(blackhole1))
                 blackholeEvent();
         });
         gameTimeline.getKeyFrames().add(gameFrame);
@@ -327,24 +315,20 @@ public class Game extends Application {
     }
 
     private boolean aiTimeStopEvent() {
-        if (ai.timeStopRequested()) {
+        if (ai.isTimeStopRequested()) {
             ai.setTimeStopper(false);
-            ai.getItemsPicked().remove(ImageController.getItemImage(2));
-            renewInfo();
-            if (!gameGroup.getChildren().contains(timeStopDurationText)) {
-                AudioController.timeStopper();
-                setX(timeStopDurationText, xOf(ball) - 15);
-                setY(timeStopDurationText, (yOf(ball) >= WIDTH / 2 ? yOf(ball) - 15 : yOf(ball) + heightOf(ball) + 15));
-                gameGroup.getChildren().add(timeStopDurationText);
-            }
+            ai.getItemsPicked().remove(ImageHandler.getItemImage(2));
+            renewWinratePanel();
+            if (!gamePanel.getChildren().contains(timeStopDurationText))
+                timeStopActivate();
             ai.move(ball, aiActualSpeed, aiBasicSpeed * aiSpeedScale, ballDY);
             ai.setTimeStopDuration(ai.getTimeStopDuration() - updateSpeed);
             timeStopDurationText.setText(String.valueOf(ai.getTimeStopDuration()).substring(0, 4));
             timeStopDurationText.setOpacity(ai.getTimeStopDuration() / 2);
             if (ai.getTimeStopDuration() <= 0) {
-                ai.resetTimeStopRequest();
+                ai.disableTimeStopRequest();
                 ai.setTimeStopDuration(2.0);
-                gameGroup.getChildren().remove(timeStopDurationText);
+                gamePanel.getChildren().remove(timeStopDurationText);
                 timeStopDurationText.setText(String.valueOf(2.0));
             }
             return true;
@@ -352,49 +336,64 @@ public class Game extends Application {
         return false;
     }
 
+    private void buildMenuContentTree() {
+        menuRoot = new Group();
+        menuRoot.getChildren().addAll(startBtn, exitBtn, musicSwc, soundsSwc, itemsSwc,
+                easyBtn, mediumBtn, hardBtn, itemsBackground, author);
+        menuRoot.getChildren().addAll(menuItems);
+        menuRoot.getChildren().addAll(itemsTexts);
+        menuRoot.getChildren().addAll(menuTexts);
+    }
+
+    private void timeStopActivate() {
+        AudioHandler.timeStopper();
+        setX(timeStopDurationText, xOf(ball) - 15);
+        setY(timeStopDurationText, (yOf(ball) >= WIDTH / 2 ? yOf(ball) - 15 : yOf(ball) + heightOf(ball) + 15));
+        gamePanel.getChildren().add(timeStopDurationText);
+    }
+
     private void playerMoveEvent() {
-        if (!projectileHit) {
-            if (upKey) {
-                if (player.getBoundsInParent().getMinY() >= playerBasicSpeed * playerSpeedScale)
-                    setY(player, yOf(player) - playerBasicSpeed * playerSpeedScale * (shiftKey ? 0.5 : 1.0));
-            } else if (downKey) {
-                if (player.getBoundsInParent().getMaxY() <= HEIGHT - playerBasicSpeed * playerSpeedScale)
-                    setY(player, yOf(player) + playerBasicSpeed * playerSpeedScale * (shiftKey ? 0.5 : 1.0));
-            }
-        } else {
-            projectileHitDuration -= updateSpeed;
-            if (projectileHitDuration <= 0) {
-                projectileHit = false;
-                projectileHitDuration = 0.5;
-            }
+        if (!projectileHit)
+            movePlayer();
+        else
+            tickPlayerStun();
+    }
+
+    private void movePlayer() {
+        if (upKey) {
+            if (player.getBoundsInParent().getMinY() >= playerBasicSpeed * playerSpeedScale)
+                setY(player, yOf(player) - playerBasicSpeed * playerSpeedScale * (shiftKey ? 0.5 : 1.0));
+        } else if (downKey) {
+            if (player.getBoundsInParent().getMaxY() <= HEIGHT - playerBasicSpeed * playerSpeedScale)
+                setY(player, yOf(player) + playerBasicSpeed * playerSpeedScale * (shiftKey ? 0.5 : 1.0));
         }
     }
 
-    private void updateEvent() {
+    private void tickPlayerStun() {
+        projectileHitDuration -= updateSpeed;
+        if (projectileHitDuration <= 0) {
+            projectileHit = false;
+            projectileHitDuration = 0.5;
+        }
+    }
+
+    private void tickFrame() {
         if (!timeStopped) {
-            if (++ballTailUpdate == 8) {
-                setX(ballTail[Math.abs(ballTailIndex) % ballTail.length], xOf(ball));
-                setY(ballTail[Math.abs(ballTailIndex) % ballTail.length], yOf(ball));
-                ballTailIndex += 1;
-                ballTailUpdate = 0;
-            }
-            if (gameGroup.getChildren().contains(magnetHigh))
+            moveBallTail();
+            if (gamePanel.getChildren().contains(magnetHigh))
                 checkBallMagnet();
-            if (gameGroup.getChildren().contains(blackhole1))
+            if (gamePanel.getChildren().contains(blackhole1))
                 checkBallBlackhole();
             checkBallBatsCollision();
             checkBallScreenCollision();
             checkBallItemCollision();
             if (ai.hasPistol() && ai.isShootRequest()) {
                 if (ai.getShotsLeft() <= 0) {
-                    ai.setHasPistol(false);
-                    ai.setShootRequest(false);
-                    ai.setShotsLeft(3);
-                    ai.getItemsPicked().remove(ImageController.getItemImage(9));
-                    renewInfo();
+                    ai.resetPistol();
+                    renewWinratePanel();
                 } else {
                     ai.setShotsLeft(ai.getShotsLeft() - 1);
-                    AudioController.shot();
+                    AudioHandler.shot();
                 }
                 if (ai.getShotsLeft() < 3) {
                     if (!batsSwapped)
@@ -402,37 +401,28 @@ public class Game extends Application {
                     else
                         setX(ai.getAiShots()[ai.getShotsLeft()], xOf(ai) + widthOf(ai) + 2);
                     setY(ai.getAiShots()[ai.getShotsLeft()], yOf(ai) + halfHeightOf(ai) - halfHeightOf(ai.getAiShots()[ai.getShotsLeft()]));
-                    gameGroup.getChildren().add(ai.getAiShots()[ai.getShotsLeft()]);
+                    gamePanel.getChildren().add(ai.getAiShots()[ai.getShotsLeft()]);
                 }
             }
             movePlayerProjectiles();
             moveAIProjectiles();
-            if (Options.itemsOn())
-                spawnItem();
-            if (ai.isProjectileHit()) {
-                ai.setProjectileHitDuration(ai.getProjectileHitDuration() - updateSpeed);
-                if (ai.getProjectileHitDuration() <= 0) {
-                    ai.setProjectileHitDuration(0.5);
-                    ai.projectileHit(false);
-                }
+            if (Options.isItemsOn())
+                rollSpawnItem();
+            if (ai.isConfusedYet(updateSpeed))
                 return;
-            }
             ai.move(ball, aiActualSpeed, aiBasicSpeed * aiSpeedScale, ballDY);
         } else {
-            if (!gameGroup.getChildren().contains(timeStopDurationText)) {
-                setX(timeStopDurationText, xOf(ball) - 15);
-                setY(timeStopDurationText, (yOf(ball) >= WIDTH / 2 ? yOf(ball) - 15 : yOf(ball) + heightOf(ball) + 25));
-                gameGroup.getChildren().add(timeStopDurationText);
-            }
-            timeStopDuration -= updateSpeed;
-            timeStopDurationText.setText(String.valueOf(timeStopDuration).substring(0, 4));
-            timeStopDurationText.setOpacity(timeStopDuration / 2);
-            if (timeStopDuration <= 0) {
-                timeStopped = false;
-                timeStopDuration = 2;
-                gameGroup.getChildren().remove(timeStopDurationText);
-                timeStopDurationText.setText(String.valueOf(2.0));
-            }
+            if (!gamePanel.getChildren().contains(timeStopDurationText))
+                timeStopActivate();
+            tickTimeStopDuration();
+        }
+    }
+
+    private void moveBallTail() {
+        if (++ballTailFrameUpdate == 8) {
+            setXY(ballTail[Math.abs(ballTailIndex) % ballTail.length], xOf(ball), yOf(ball));
+            ballTailIndex += 1;
+            ballTailFrameUpdate = 0;
         }
     }
 
@@ -458,15 +448,13 @@ public class Game extends Application {
     private void checkBallBlackhole() {
         if (ball.getBoundsInParent().intersects(blackhole1.getBoundsInParent()) && blackholeActive) {
             blackholeActive = false;
-            AudioController.blackhole();
-            setX(ball, xOf(blackhole2) + halfWidthOf(blackhole2));
-            setY(ball, yOf(blackhole2) + halfHeightOf(blackhole2));
+            AudioHandler.blackhole();
+            setXY(ball, xOf(blackhole2) + halfWidthOf(blackhole2), yOf(blackhole2) + halfHeightOf(blackhole2));
         }
         if (ball.getBoundsInParent().intersects(blackhole2.getBoundsInParent()) && blackholeActive) {
             blackholeActive = false;
-            AudioController.blackhole();
-            setX(ball, xOf(blackhole1) + halfWidthOf(blackhole1));
-            setY(ball, yOf(blackhole1) + halfHeightOf(blackhole1));
+            AudioHandler.blackhole();
+            setXY(ball, xOf(blackhole1) + halfWidthOf(blackhole1), yOf(blackhole1) + halfHeightOf(blackhole1));
         }
     }
 
@@ -498,21 +486,21 @@ public class Game extends Application {
     }
 
     private void updateAfterBatReflection(Node bat, boolean batsSwapped) {
-        ballDY = (yOf(bat) + halfHeightOf(bat) - (yOf(ball) + halfHeightOf(ball))) / BALL_REFLECT_RATIO * speedUpRatio;
+        ballDY = (yOf(bat) + halfHeightOf(bat) - (yOf(ball) + halfHeightOf(ball))) / BALL_REFLECT_RATIO * ballSpeedRatio;
         ballUp = ballDY < 0;
         ballDY = Math.abs(ballDY);
         ballLeft = !ballLeft;
         ballDX += 0.0022;
         blackholeActive = true;
         playersBallTurn = batsSwapped;
-        AudioController.batReflection();
+        AudioHandler.batReflection();
     }
 
     private void checkBallScreenCollision() {
         setX(ball, xOf(ball) + (ballLeft ? -ballDX : ballDX));
         if (xOf(ball) <= ballDX + 1) {
             ballLeft = false;
-            AudioController.screenReflection();
+            AudioHandler.screenReflection();
             if (!batsSwapped)
                 playerMissed();
             else
@@ -520,7 +508,7 @@ public class Game extends Application {
         }
         if (xOf(ball) + widthOf(ball) >= WIDTH - 3) {
             ballLeft = true;
-            AudioController.screenReflection();
+            AudioHandler.screenReflection();
             if (!batsSwapped)
                 aiMissed();
             else
@@ -529,24 +517,24 @@ public class Game extends Application {
 
         setY(ball, yOf(ball) + (ballUp ? -ballDY : ballDY));
         if (yOf(ball) <= ballDY + 1) {
-            AudioController.screenReflection();
+            AudioHandler.screenReflection();
             ballUp = false;
         }
         if (yOf(ball) + heightOf(ball) + ballDY >= HEIGHT - 3) {
-            AudioController.screenReflection();
+            AudioHandler.screenReflection();
             ballUp = true;
         }
     }
 
     private void playerMissed() {
-        score[missesLeft] = ImageController.getSwitchImage(false);
-        renewInfo();
+        score[missesLeft] = ImageHandler.getSwitchImage(false);
+        renewWinratePanel();
         if (missesLeft == 0) {
-            if (!gameGroup.getChildren().contains(resultMessageLose))
-                gameGroup.getChildren().add(resultMessageLose);
+            if (!gamePanel.getChildren().contains(resultMessageLose))
+                gamePanel.getChildren().add(resultMessageLose);
             gameTimeline.stop();
-            AudioController.result();
-            TextController.getResultAnimation().play();
+            AudioHandler.result();
+            TextHandler.getResultLightAnimation().play();
             return;
         }
         missesLeft--;
@@ -554,27 +542,28 @@ public class Game extends Application {
 
     private void aiMissed() {
         ai.ballMissed();
-        renewInfo();
+        renewWinratePanel();
         if (ai.getMissesLeft() == 0) {
-            if (!gameGroup.getChildren().contains(resultMessageWin))
-                gameGroup.getChildren().add(resultMessageWin);
+            if (!gamePanel.getChildren().contains(resultMessageWin))
+                gamePanel.getChildren().add(resultMessageWin);
             gameTimeline.stop();
-            AudioController.result();
-            TextController.getResultAnimation().play();
+            AudioHandler.result();
+            TextHandler.getResultLightAnimation().play();
             return;
         }
-        ai.renewMissCount();
+        ai.decreaseMissesLeft();
     }
 
     private void checkBallItemCollision() {
-        Iterator<Item> itemsIterator = itemsInGroup.iterator();
+        Iterator<Item> itemsIterator = items.iterator();
         while (itemsIterator.hasNext()) {
             Item currentItem = itemsIterator.next();
             if (ball.getBoundsInParent().intersects(currentItem.getBoundsInParent())) {
                 currentItem.applyAction();
-                itemsInGame[currentItem.ordinal] = false;
-                gameGroup.getChildren().remove(currentItem);
+                itemsPresentInGame[currentItem.ordinal] = false;
+                gamePanel.getChildren().remove(currentItem);
                 itemsIterator.remove();
+                break;
             }
         }
     }
@@ -605,117 +594,125 @@ public class Game extends Application {
 
     private void movePlayerProjectiles() {
         for (Circle playerShot : playerShots) {
-            if (gameGroup.getChildren().contains(playerShot)) {
-                if (!batsSwapped) {
-                    if (playerShot.getBoundsInParent().intersects(ai.getBoundsInParent())) {
-                        ai.projectileHit(true);
-                        gameGroup.getChildren().remove(playerShot);
-                    }
-                    if (xOf(playerShot) + 1.5 >= WIDTH - 1.5) {
-                        gameGroup.getChildren().remove(playerShot);
-                    } else {
-                        setX(playerShot, xOf(playerShot) + 1.5);
-                    }
-                } else {
-                    if (playerShot.getBoundsInParent().intersects(ai.getBoundsInParent())) {
-                        ai.projectileHit(true);
-                        gameGroup.getChildren().remove(playerShot);
-                    }
-                    if (xOf(playerShot) <= 5) {
-                        gameGroup.getChildren().remove(playerShot);
-                    } else {
-                        setX(playerShot, xOf(playerShot) - 1.5);
-                    }
+            if (gamePanel.getChildren().contains(playerShot)) {
+                if (playerShot.getBoundsInParent().intersects(ai.getBoundsInParent())) {
+                    ai.setProjectileHit(true);
+                    gamePanel.getChildren().remove(playerShot);
+                    return;
                 }
+                if (!batsSwapped)
+                    tickPlayerProjectileMoveRight(playerShot);
+                else
+                    tickPlayerProjectileMoveLeft(playerShot);
             }
         }
+    }
+
+    private void tickPlayerProjectileMoveRight(Circle playerShot) {
+        if (xOf(playerShot) + 1.5 >= WIDTH - 1.5)
+            gamePanel.getChildren().remove(playerShot);
+        else
+            setX(playerShot, xOf(playerShot) + 1.5);
+    }
+
+    private void tickPlayerProjectileMoveLeft(Circle playerShot) {
+        if (xOf(playerShot) <= 5)
+            gamePanel.getChildren().remove(playerShot);
+        else
+            setX(playerShot, xOf(playerShot) - 1.5);
     }
 
     private void moveAIProjectiles() {
         for (Circle aiShot : aiShots) {
             ai.setShootRequest(false);
-            if (gameGroup.getChildren().contains(aiShot)) {
-                if (!batsSwapped) {
-                    if (aiShot.getBoundsInParent().intersects(player.getBoundsInParent())) {
-                        projectileHit = true;
-                        gameGroup.getChildren().remove(aiShot);
-                    }
-                    if (xOf(aiShot) <= 5) {
-                        gameGroup.getChildren().remove(aiShot);
-                        ai.setShootRequest(true);
-                    } else {
-                        setX(aiShot, xOf(aiShot) - 1.5);
-                    }
-                } else {
-                    if (aiShot.getBoundsInParent().intersects(player.getBoundsInParent())) {
-                        projectileHit = true;
-                        gameGroup.getChildren().remove(aiShot);
-                    }
-                    if (xOf(aiShot) + 1.5 >= WIDTH - 1.5) {
-                        gameGroup.getChildren().remove(aiShot);
-                        ai.setShootRequest(true);
-                    } else {
-                        setX(aiShot, xOf(aiShot) + 1.5);
-                    }
+            if (gamePanel.getChildren().contains(aiShot)) {
+                if (aiShot.getBoundsInParent().intersects(player.getBoundsInParent())) {
+                    projectileHit = true;
+                    gamePanel.getChildren().remove(aiShot);
+                    return;
                 }
+                if (!batsSwapped)
+                    tickAiProjectileMoveLeft(aiShot);
+                else
+                    tickAiProjectileMoveRight(aiShot);
             }
         }
     }
 
-    private void spawnItem() {
+    private void tickAiProjectileMoveLeft(Circle aiShot) {
+        if (xOf(aiShot) <= 5) {
+            gamePanel.getChildren().remove(aiShot);
+            ai.setShootRequest(true);
+        } else
+            setX(aiShot, xOf(aiShot) - 1.5);
+    }
+
+    private void tickAiProjectileMoveRight(Circle aiShot) {
+        if (xOf(aiShot) + 1.5 >= WIDTH - 1.5) {
+            gamePanel.getChildren().remove(aiShot);
+            ai.setShootRequest(true);
+        } else
+            setX(aiShot, xOf(aiShot) + 1.5);
+    }
+
+    private void rollSpawnItem() {
         if (random.nextInt(1600) == 11) {
             int ordinal = random.nextInt(10);
-            if (itemsInGame[ordinal])
+            if (itemsPresentInGame[ordinal])
                 return;
             Item item = Item.getItemByOrdinal(ordinal).copy();
             item.setTranslateX(WIDTH / 2 + Math.random() * 700 - 350);
             item.setTranslateY(HEIGHT / 2 + Math.random() * 600 - 300);
-            for (int i = 0; i < gameGroup.getChildren().size(); i++) {
-                if (Math.abs(xOf(item) - xOf(gameGroup.getChildren().get(i))) <= widthOf(item)
-                        || Math.abs(yOf(item) - yOf(gameGroup.getChildren().get(i))) <= heightOf(item))
+            for (int i = 0; i < gamePanel.getChildren().size(); i++) {
+                if (Math.abs(xOf(item) - xOf(gamePanel.getChildren().get(i))) <= widthOf(item)
+                        || Math.abs(yOf(item) - yOf(gamePanel.getChildren().get(i))) <= heightOf(item))
                     return;
             }
-            itemsInGroup.add(item);
-            gameGroup.getChildren().add(item);
-            itemsInGame[ordinal] = true;
+            items.add(item);
+            gamePanel.getChildren().add(item);
+            itemsPresentInGame[ordinal] = true;
+        }
+    }
+
+    private void tickTimeStopDuration() {
+        timeStopDuration -= updateSpeed;
+        timeStopDurationText.setText(String.valueOf(timeStopDuration).substring(0, 4));
+        timeStopDurationText.setOpacity(timeStopDuration / 2);
+        if (timeStopDuration <= 0) {
+            timeStopped = false;
+            timeStopDuration = 2;
+            gamePanel.getChildren().remove(timeStopDurationText);
+            timeStopDurationText.setText(String.valueOf(2.0));
         }
     }
 
     private void initCountdownTimeline() {
-        KeyFrame countdownFadeout = new KeyFrame(Duration.millis(10), event -> {
+        countdownTimeline.getKeyFrames().add(initializeCountdownFrame());
+        countdownTimeline.setCycleCount(4);
+        countdownTextTimeline.getKeyFrames().add(initializeCountdownTextFrame());
+        countdownTextTimeline.setCycleCount(Animation.INDEFINITE);
+    }
+
+    private KeyFrame initializeCountdownFrame() {
+        return new KeyFrame(Duration.seconds(1), event -> {
+            if (!gamePanel.getChildren().contains(countdownText))
+                gamePanel.getChildren().add(countdownText);
+            AudioHandler.countdown();
+            countdownText.setText(String.valueOf(countdownOrdinal[0]--));
+            countdownTextTimeline.play();
+            setXY(countdownText, 0, 0);
+            countdownFontSize[0] = 96 * 4;
+        });
+    }
+
+    private KeyFrame initializeCountdownTextFrame() {
+        return new KeyFrame(Duration.millis(10), event -> {
             countdownFontSize[0] -= 2;
             if (countdownFontSize[0] < 192)
                 countdownFontSize[0] = 192;
             countdownText.setFont(new Font("Arial", countdownFontSize[0]));
-            setX(countdownText, xOf(countdownText) + 0.72);
-            setY(countdownText, yOf(countdownText) - 0.72);
+            setXY(countdownText, xOf(countdownText) + 0.72, yOf(countdownText) - 0.72);
         });
-        KeyFrame countdownFrame = new KeyFrame(Duration.seconds(1), event -> {
-            if (!gameGroup.getChildren().contains(countdownText))
-                gameGroup.getChildren().add(countdownText);
-            AudioController.countdown();
-            countdownText.setText(String.valueOf(countdownNumber[0]--));
-            countdownTextTimeline.play();
-            setX(countdownText, 0);
-            setY(countdownText, 0);
-            countdownFontSize[0] = 96 * 4;
-        });
-        countdownTimeline.getKeyFrames().add(countdownFrame);
-        countdownTimeline.setCycleCount(4);
-        countdownTextTimeline.getKeyFrames().add(countdownFadeout);
-        countdownTextTimeline.setCycleCount(Animation.INDEFINITE);
-    }
-
-    private void buildMenuContentTree() {
-        menuRoot = new Group();
-        menuRoot.getChildren().addAll(startBtn, exitBtn, musicSwc, soundsSwc, itemsSwc,
-                easyBtn, mediumBtn, hardBtn, itemsBackground, author);
-        for (ImageView item : menuItems)
-            menuRoot.getChildren().add(item);
-        for (Text text : itemsTexts)
-            menuRoot.getChildren().add(text);
-        for (Text text : menuTexts)
-            menuRoot.getChildren().add(text);
     }
 
     private void launchGame() {
@@ -727,6 +724,11 @@ public class Game extends Application {
     }
 
     private void initializeKeyboardHandler() {
+        initializeKeyPressedHandler();
+        initializeKeyReleasedHandler();
+    }
+
+    private void initializeKeyPressedHandler() {
         gameScene.setOnKeyPressed(event -> {
             switch (event.getCode()) {
                 case SHIFT:
@@ -741,43 +743,23 @@ public class Game extends Application {
                 case E:
                     if (!hasTimeStopper)
                         break;
-                    AudioController.timeStopper();
                     timeStopped = true;
                     hasTimeStopper = false;
-                    itemsPicked.remove(ImageController.getItemImage(2));
-                    renewInfo();
+                    itemsPicked.remove(ImageHandler.getItemImage(2));
+                    renewWinratePanel();
                     break;
                 case SPACE:
-                    if (hasPistol) {
-                        AudioController.shot();
-                        pistolsLeft--;
-                        if (!gameGroup.getChildren().contains(playerShots[pistolsLeft]))
-                            gameGroup.getChildren().add(playerShots[pistolsLeft]);
-                        if (!batsSwapped)
-                            setX(playerShots[pistolsLeft], xOf(player) + widthOf(player) + 2);
-                        else
-                            setX(playerShots[pistolsLeft], xOf(player) - widthOf(playerShots[pistolsLeft]) - 2);
-                        setY(playerShots[pistolsLeft], yOf(player) + halfHeightOf(player) - halfHeightOf(playerShots[pistolsLeft]));
-                        if (pistolsLeft == 0) {
-                            hasPistol = false;
-                            pistolsLeft = 3;
-                            itemsPicked.remove(ImageController.getItemImage(9));
-                            renewInfo();
-                        }
-                    }
+                    if (hasPistol)
+                        spawnPlayerProjectile();
                     break;
                 case ESCAPE:
-                    gameTimeline.stop();
-                    TextController.getResultAnimation().stop();
-                    stage.setScene(menuScene);
-                    resetCountdown();
-                    if (gameGroup.getChildren().contains(resultMessageWin))
-                        gameGroup.getChildren().remove(resultMessageWin);
-                    if (gameGroup.getChildren().contains(resultMessageLose))
-                        gameGroup.getChildren().remove(resultMessageLose);
+                    returnToMenu();
                     break;
             }
         });
+    }
+
+    private void initializeKeyReleasedHandler() {
         gameScene.setOnKeyReleased(event -> {
             switch (event.getCode()) {
                 case SHIFT:
@@ -793,105 +775,118 @@ public class Game extends Application {
         });
     }
 
+    private void spawnPlayerProjectile() {
+        AudioHandler.shot();
+        --pistolsLeft;
+        if (!gamePanel.getChildren().contains(playerShots[pistolsLeft]))
+            gamePanel.getChildren().add(playerShots[pistolsLeft]);
+        if (!batsSwapped)
+            setX(playerShots[pistolsLeft], xOf(player) + widthOf(player) + 2);
+        else
+            setX(playerShots[pistolsLeft], xOf(player) - widthOf(playerShots[pistolsLeft]) - 2);
+        setY(playerShots[pistolsLeft], yOf(player) + halfHeightOf(player) - halfHeightOf(playerShots[pistolsLeft]));
+        if (pistolsLeft == 0) {
+            hasPistol = false;
+            pistolsLeft = 3;
+            itemsPicked.remove(ImageHandler.getItemImage(9));
+            renewWinratePanel();
+        }
+    }
+
     public static void resetCountdown() {
         if (countdownTimeline.getStatus() == Timeline.Status.RUNNING)
             countdownTimeline.stop();
-        gameGroup.getChildren().remove(countdownText);
-        countdownNumber[0] = 3;
+        gamePanel.getChildren().remove(countdownText);
+        countdownOrdinal[0] = 3;
     }
 
-    public static void resetScore() {
-        missesLeft = 4;
-        for (int i = 0; i < score.length; i++) {
-            score[i] = ImageController.getSwitchImage(true);
-        }
-        ai.resetScore();
+    public static void globalReset() {
+        resetScore();
         resetObjects();
-        renewInfo();
+        renewWinratePanel();
+    }
+
+    private static void resetScore() {
+        missesLeft = 4;
+        for (int i = 0; i < score.length; i++)
+            score[i] = ImageHandler.getSwitchImage(true);
+        ai.resetScore();
     }
 
     private static void resetObjects() {
         itemsPicked.clear();
         ai.resetObjects();
-        ai.setHeight(BAT_HEIGHT);
-        player.setHeight(BAT_HEIGHT);
+        resetPlayerLogic();
+        resetBallLogic();
         batsSwapped = false;
+        timeStopDuration = 2.0;
+        aiSpeedScale = 1.0;
+        gamePanel.getChildren().removeAll(playerShots);
+        gamePanel.getChildren().removeAll(aiShots);
+        gamePanel.getChildren().remove(timeStopDurationText);
+        allocator.allocateObjects();
+        for (int i = 0; i < itemsPresentInGame.length; i++)
+            itemsPresentInGame[i] = false;
+        gamePanel.getChildren().removeAll(items);
+        items.clear();
+    }
+
+    private static void resetPlayerLogic() {
+        player.setHeight(DEFAULT_PADDLE_HEIGHT);
         playersBallTurn = true;
-        magnetHighLeft = random.nextBoolean();
-        magnetLowLeft = random.nextBoolean();
         timeStopped = false;
         hasTimeStopper = false;
         hasPistol = false;
         pistolsLeft = 3;
         projectileHitDuration = 0.5;
         projectileHit = false;
-        blackholeActive = true;
-        sinDegree = 0;
-        for (Circle playerProjectile : playerShots) {
-            gameGroup.getChildren().remove(playerProjectile);
-        }
-        for (Circle aiProjectile : aiShots)
-            gameGroup.getChildren().remove(aiProjectile);
-        timeStopDuration = 2.0;
-        gameGroup.getChildren().remove(timeStopDurationText);
-        allocator.allocateObjects();
+        playerSpeedScale = 1.0;
+    }
+
+    private static void resetBallLogic() {
         ballDX = 1.5;
         ballDY = 1.075;
-        speedUpRatio = 1.0;
-        playerSpeedScale = 1.0;
-        aiSpeedScale = 1.0;
+        ballSpeedRatio = 1.0;
         ballLeft = false;
         ballUp = random.nextBoolean();
         ballTailIndex = 0;
-        ballTailUpdate = 0;
-        for (int i = 0; i < itemsInGame.length; i++)
-            itemsInGame[i] = false;
-        for (Item item : itemsInGroup)
-            gameGroup.getChildren().remove(item);
-        itemsInGroup.clear();
+        ballTailFrameUpdate = 0;
     }
 
     public static void setClassicLevel() {
-        removeMagnets();
-        removeBlackholes();
-        gameCanvas.getGraphicsContext2D().drawImage(ImageController.getClassicSheet(), 0, 0, WIDTH, HEIGHT);
+        gamePanel.getChildren().removeAll(magnetHigh, magnetLow, blackhole1, blackhole2);
+        gameCanvas.getGraphicsContext2D().drawImage(ImageHandler.getClassicSheet(), 0, 0, WIDTH, HEIGHT);
     }
 
     public static void setMagneticLevel() {
-        removeBlackholes();
-        if (!gameGroup.getChildren().contains(magnetHigh) && !gameGroup.getChildren().contains(magnetLow))
-            gameGroup.getChildren().addAll(magnetHigh, magnetLow);
-        gameCanvas.getGraphicsContext2D().drawImage(ImageController.getMagneticSheet(), 0, 0, WIDTH, HEIGHT);
+        gamePanel.getChildren().removeAll(blackhole1, blackhole2);
+        if (!gamePanel.getChildren().contains(magnetHigh) && !gamePanel.getChildren().contains(magnetLow))
+            gamePanel.getChildren().addAll(magnetHigh, magnetLow);
+        gameCanvas.getGraphicsContext2D().drawImage(ImageHandler.getMagneticSheet(), 0, 0, WIDTH, HEIGHT);
+        magnetHighLeft = random.nextBoolean();
+        magnetLowLeft = random.nextBoolean();
     }
 
     public static void setSpaceLevel() {
-        removeMagnets();
-        if (!gameGroup.getChildren().contains(blackhole1) && !gameGroup.getChildren().contains(blackhole2))
-            gameGroup.getChildren().addAll(blackhole1, blackhole2);
-        gameCanvas.getGraphicsContext2D().drawImage(ImageController.getSpaceSheet(), 0, 0, WIDTH, HEIGHT);
-    }
-
-    private static void removeMagnets() {
-        if (gameGroup.getChildren().contains(magnetHigh) && gameGroup.getChildren().contains(magnetLow)) {
-            gameGroup.getChildren().remove(magnetHigh);
-            gameGroup.getChildren().remove(magnetLow);
-        }
-    }
-
-    private static void removeBlackholes() {
-        if (gameGroup.getChildren().contains(blackhole1) && gameGroup.getChildren().contains(blackhole2)) {
-            gameGroup.getChildren().remove(blackhole1);
-            gameGroup.getChildren().remove(blackhole2);
-        }
+        gamePanel.getChildren().removeAll(magnetHigh, magnetLow);
+        if (!gamePanel.getChildren().contains(blackhole1) && !gamePanel.getChildren().contains(blackhole2))
+            gamePanel.getChildren().addAll(blackhole1, blackhole2);
+        gameCanvas.getGraphicsContext2D().drawImage(ImageHandler.getSpaceSheet(), 0, 0, WIDTH, HEIGHT);
+        blackholeActive = true;
+        sinDegree = 0;
     }
 
     public static void returnToMenu() {
+        gameTimeline.stop();
+        TextHandler.getResultLightAnimation().stop();
         stage.setScene(menuScene);
+        resetCountdown();
+        gamePanel.getChildren().removeAll(resultMessageWin, resultMessageLose);
     }
 
     public static void main(String[] args) {
         launch(args);
-        AudioController.finish();
+        AudioHandler.finish();
     }
 
     private static class Allocator {
@@ -903,35 +898,25 @@ public class Game extends Application {
         }
 
         private void allocateBall() {
-            setX(ball, 20);
-            setY(ball, screenCenter.getY());
-            for (ImageView tailPiece : ballTail) {
-                setX(tailPiece, xOf(ball));
-                setY(tailPiece, yOf(ball));
-            }
+            setXY(ball, 20, screenCenter.getY());
+            for (ImageView tailPiece : ballTail)
+                setXY(tailPiece, xOf(ball), yOf(ball));
         }
 
         private void allocatePlayers() {
+            setXY(player, 2, screenCenter.getY() - halfHeightOf(player));
+            setXY(ai, WIDTH - 10, screenCenter.getY() - halfHeightOf(ai));
             for (Circle playerShot : playerShots) {
                 playerShot.setFill(Color.WHITE);
-                playerShot.setEffect(blur);
+                playerShot.setEffect(BLUR);
             }
-            setY(player, screenCenter.getY() - halfHeightOf(player));
-            setX(player, 2);
-            setX(ai, WIDTH - 10);
-            setY(ai, screenCenter.getY() - halfHeightOf(ai));
         }
 
         private void allocateAdditionalObjects() {
-            setX(magnetHigh, WIDTH / 2 + halfWidthOf(magnetHigh));
-            setY(magnetHigh, 0);
-            setX(magnetLow, WIDTH / 2);
-            setY(magnetLow, HEIGHT - 1);
-
-            setX(blackhole1, screenCenter.getX() + blackholeRadius);
-            setY(blackhole1, screenCenter.getY());
-            setX(blackhole2, screenCenter.getX() - blackholeRadius);
-            setY(blackhole2, screenCenter.getY());
+            setXY(magnetHigh, WIDTH / 2 + halfWidthOf(magnetHigh), 0);
+            setXY(magnetLow, WIDTH / 2, HEIGHT - 1);
+            setXY(blackhole1, screenCenter.getX() + blackholeRadius, screenCenter.getY());
+            setXY(blackhole2, screenCenter.getX() - blackholeRadius, screenCenter.getY());
         }
 
         private void allocateMenuObjects() {
@@ -947,138 +932,95 @@ public class Game extends Application {
         private void allocStartButton() {
             setY(startBtn, HEIGHT / 9 - halfHeightOf(startBtn));
             setX(startBtn, yOf(startBtn));
-            setY(menuTexts[0], yOf(startBtn) + 50);
-            setX(menuTexts[0], xOf(startBtn) + halfWidthOf(startBtn) - halfWidthOf(menuTexts[0]));
-            ButtonController.initStartButton(menuTexts[0], stage, levelChooserScene);
+            setXY(menuTexts[0], xOf(startBtn) + halfWidthOf(startBtn) - halfWidthOf(menuTexts[0]), yOf(startBtn) + 50);
+            ButtonHandler.initStartButton(menuTexts[0], stage, levelChooserScene);
         }
 
         private void allocExitButton() {
-            setX(exitBtn, xOf(startBtn));
-            setY(exitBtn, yOf(startBtn) + heightOf(startBtn) + 40);
-            setY(menuTexts[1], yOf(exitBtn) + 50);
-            setX(menuTexts[1], xOf(exitBtn) + halfWidthOf(exitBtn) - halfWidthOf(menuTexts[1]));
-            ButtonController.initExitButton(menuTexts[1]);
+            setXY(exitBtn, xOf(startBtn), yOf(startBtn) + heightOf(startBtn) + 40);
+            setXY(menuTexts[1], xOf(exitBtn) + halfWidthOf(exitBtn) - halfWidthOf(menuTexts[1]), yOf(exitBtn) + 50);
+            ButtonHandler.initExitButton(menuTexts[1]);
         }
 
         private void allocSoundsSwitch() {
-            setY(menuTexts[3], yOf(menuTexts[0]));
-            setX(menuTexts[3], yOf(startBtn) + widthOf(startBtn) + 50);
-            setY(soundsSwc, HEIGHT / 9 - halfHeightOf(soundsSwc));
-            setX(soundsSwc, xOf(menuTexts[3]) + 20 + widthOf(menuTexts[3]));
+            setXY(menuTexts[3], yOf(startBtn) + widthOf(startBtn) + 50, yOf(menuTexts[0]));
+            setXY(soundsSwc, xOf(menuTexts[3]) + 20 + widthOf(menuTexts[3]), HEIGHT / 9 - halfHeightOf(soundsSwc));
         }
 
         private void allocMusicSwitch() {
-            setY(menuTexts[2], yOf(menuTexts[3]) + 60);
-            setX(menuTexts[2], xOf(menuTexts[3]));
-            setY(musicSwc, yOf(soundsSwc) + 60);
-            setX(musicSwc, xOf(soundsSwc));
+            setXY(menuTexts[2], xOf(menuTexts[3]), yOf(menuTexts[3]) + 60);
+            setXY(musicSwc, xOf(soundsSwc), yOf(soundsSwc) + 60);
         }
 
         private void allocItemsSwitch() {
-            setY(menuTexts[4], yOf(menuTexts[2]) + 60);
-            setX(menuTexts[4], xOf(menuTexts[2]));
-            setY(itemsSwc, yOf(musicSwc) + 60);
-            setX(itemsSwc, xOf(musicSwc));
+            setXY(menuTexts[4], xOf(menuTexts[2]), yOf(menuTexts[2]) + 60);
+            setXY(itemsSwc, xOf(musicSwc), yOf(musicSwc) + 60);
         }
 
         private void allocDifficultyBlock() {
-            setX(menuTexts[5], WIDTH * 0.75 - halfWidthOf(menuTexts[5]) - 28);
-            setY(menuTexts[5], yOf(menuTexts[3]));
-
-            setY(menuTexts[6], yOf(menuTexts[2]));
-            setX(menuTexts[6], WIDTH / 2 + 60);
-            setY(easyBtn, yOf(itemsSwc));
-            setX(easyBtn, xOf(menuTexts[6]) + halfWidthOf(menuTexts[6]) - halfWidthOf(easyBtn));
-
-            setY(menuTexts[7], yOf(menuTexts[2]));
-            setX(menuTexts[7], xOf(menuTexts[6]) + widthOf(menuTexts[6]) + 40);
-            setY(mediumBtn, yOf(itemsSwc));
-            setX(mediumBtn, xOf(menuTexts[7]) + halfWidthOf(menuTexts[7]) - halfWidthOf(mediumBtn));
-
-            setY(menuTexts[8], yOf(menuTexts[7]));
-            setX(menuTexts[8], xOf(menuTexts[7]) + widthOf(menuTexts[7]) + 40);
-            setY(hardBtn, yOf(itemsSwc));
-            setX(hardBtn, xOf(menuTexts[8]) + halfWidthOf(menuTexts[8]) - halfWidthOf(hardBtn));
+            setXY(menuTexts[5], WIDTH * 0.75 - halfWidthOf(menuTexts[5]) - 28, yOf(menuTexts[3]));
+            setXY(menuTexts[6], WIDTH / 2 + 60, yOf(menuTexts[2]));
+            setXY(easyBtn, xOf(menuTexts[6]) + halfWidthOf(menuTexts[6]) - halfWidthOf(easyBtn), yOf(itemsSwc));
+            setXY(menuTexts[7], xOf(menuTexts[6]) + widthOf(menuTexts[6]) + 40, yOf(menuTexts[2]));
+            setXY(mediumBtn, xOf(menuTexts[7]) + halfWidthOf(menuTexts[7]) - halfWidthOf(mediumBtn), yOf(itemsSwc));
+            setXY(menuTexts[8], xOf(menuTexts[7]) + widthOf(menuTexts[7]) + 40, yOf(menuTexts[7]));
+            setXY(hardBtn, xOf(menuTexts[8]) + halfWidthOf(menuTexts[8]) - halfWidthOf(hardBtn), yOf(itemsSwc));
         }
 
         private void allocItemsBlock() {
-            setX(menuItems[0], xOf(startBtn) + 20);
-            setY(menuItems[0], yOf(startBtn) + heightOf(startBtn) + 160);
-            setY(itemsTexts[0], yOf(menuItems[0]) + heightOf(itemsTexts[0]) + 10);
-            setX(itemsTexts[0], xOf(menuItems[0]) + widthOf(menuItems[0]) + 20);
-
-            setX(menuItems[5], WIDTH / 2 + 20);
-            setY(menuItems[5], yOf(menuItems[0]));
-            setY(itemsTexts[5], yOf(menuItems[5]) + heightOf(itemsTexts[5]) + 10);
-            setX(itemsTexts[5], xOf(menuItems[5]) + widthOf(menuItems[5]) + 20);
+            setXY(menuItems[0], xOf(startBtn) + 20, yOf(startBtn) + heightOf(startBtn) + 160);
+            setXY(itemsTexts[0], xOf(menuItems[0]) + widthOf(menuItems[0]) + 20, yOf(menuItems[0]) + heightOf(itemsTexts[0]) + 10);
+            setXY(menuItems[5], WIDTH / 2 + 20, yOf(menuItems[0]));
+            setXY(itemsTexts[5], xOf(menuItems[5]) + widthOf(menuItems[5]) + 20, yOf(menuItems[5]) + heightOf(itemsTexts[5]) + 10);
 
             for (int i = 1; i < 5; i++) {
-                setX(menuItems[i], xOf(menuItems[i - 1]));
-                setY(menuItems[i], yOf(menuItems[i - 1]) + heightOf(menuItems[i - 1]) + 10);
-                setY(itemsTexts[i], yOf(menuItems[i]) + heightOf(itemsTexts[i]) + 10);
-                setX(itemsTexts[i], xOf(menuItems[i]) + widthOf(menuItems[i]) + 20);
+                setXY(menuItems[i], xOf(menuItems[i - 1]), yOf(menuItems[i - 1]) + heightOf(menuItems[i - 1]) + 10);
+                setXY(itemsTexts[i], xOf(menuItems[i]) + widthOf(menuItems[i]) + 20, yOf(menuItems[i]) + heightOf(itemsTexts[i]) + 10);
             }
             for (int i = 6; i < 10; i++) {
-                setX(menuItems[i], WIDTH / 2 + 20);
-                setY(menuItems[i], yOf(menuItems[i - 5]));
-                setY(itemsTexts[i], yOf(menuItems[i]) + heightOf(itemsTexts[i]) + 10);
-                setX(itemsTexts[i], xOf(menuItems[i]) + widthOf(menuItems[i]) + 20);
+                setXY(menuItems[i], WIDTH / 2 + 20, yOf(menuItems[i - 5]));
+                setXY(itemsTexts[i], xOf(menuItems[i]) + widthOf(menuItems[i]) + 20, yOf(menuItems[i]) + heightOf(itemsTexts[i]) + 10);
             }
-
-            setX(itemsBackground, xOf(menuItems[0]) - 20);
-            setY(itemsBackground, yOf(menuItems[0]) - 15);
+            setXY(itemsBackground, xOf(menuItems[0]) - 20, yOf(menuItems[0]) - 15);
         }
 
         void allocateLevelButtons() {
-            setX(classicLevelBtn, 190);
-            setY(classicLevelBtn, 200);
-            setX(levelTexts[0], xOf(classicLevelBtn) + halfWidthOf(classicLevelBtn) - halfWidthOf(levelTexts[0]));
-            setY(levelTexts[0], yOf(classicLevelBtn) + 50);
-            ButtonController.initClassicLevel(levelTexts[0], stage, gameScene, gameTimeline, countdownTimeline);
+            setXY(classicLevelBtn, 190, 200);
+            setXY(levelTexts[0], xOf(classicLevelBtn) + halfWidthOf(classicLevelBtn) - halfWidthOf(levelTexts[0]), yOf(classicLevelBtn) + 50);
+            ButtonHandler.initClassicLevel(levelTexts[0], stage, gameScene, gameTimeline, countdownTimeline);
 
-            setX(magneticLevelBtn, xOf(classicLevelBtn) + widthOf(classicLevelBtn) + 70);
-            setY(magneticLevelBtn, yOf(classicLevelBtn));
-            setX(levelTexts[1], xOf(magneticLevelBtn) + halfWidthOf(magneticLevelBtn) - halfWidthOf(levelTexts[1]));
-            setY(levelTexts[1], yOf(magneticLevelBtn) + 50);
-            ButtonController.initMagneticLevel(levelTexts[1], stage, gameScene, gameTimeline, countdownTimeline);
+            setXY(magneticLevelBtn, xOf(classicLevelBtn) + widthOf(classicLevelBtn) + 70, yOf(classicLevelBtn));
+            setXY(levelTexts[1], xOf(magneticLevelBtn) + halfWidthOf(magneticLevelBtn) - halfWidthOf(levelTexts[1]), yOf(magneticLevelBtn) + 50);
+            ButtonHandler.initMagneticLevel(levelTexts[1], stage, gameScene, gameTimeline, countdownTimeline);
 
-            setX(spaceLevelBtn, xOf(magneticLevelBtn) + widthOf(magneticLevelBtn) + 70);
-            setY(spaceLevelBtn, yOf(classicLevelBtn));
-            setX(levelTexts[2], xOf(spaceLevelBtn) + halfWidthOf(spaceLevelBtn) - halfWidthOf(levelTexts[2]));
-            setY(levelTexts[2], yOf(spaceLevelBtn) + 50);
-            ButtonController.initSpaceLevel(levelTexts[2], stage, gameScene, gameTimeline, countdownTimeline);
+            setXY(spaceLevelBtn, xOf(magneticLevelBtn) + widthOf(magneticLevelBtn) + 70, yOf(classicLevelBtn));
+            setXY(levelTexts[2], xOf(spaceLevelBtn) + halfWidthOf(spaceLevelBtn) - halfWidthOf(levelTexts[2]), yOf(spaceLevelBtn) + 50);
+            ButtonHandler.initSpaceLevel(levelTexts[2], stage, gameScene, gameTimeline, countdownTimeline);
 
-            setX(returnBtn, xOf(classicLevelBtn));
-            setY(returnBtn, HEIGHT - heightOf(returnBtn) - 100);
-            setX(levelTexts[3], xOf(returnBtn) + halfWidthOf(returnBtn) - halfWidthOf(levelTexts[3]));
-            setY(levelTexts[3], yOf(returnBtn) + 50);
-            ButtonController.initReturnButton(levelTexts[3]);
+            setXY(returnBtn, xOf(classicLevelBtn), HEIGHT - heightOf(returnBtn) - 100);
+            setXY(levelTexts[3], xOf(returnBtn) + halfWidthOf(returnBtn) - halfWidthOf(levelTexts[3]), yOf(returnBtn) + 50);
+            ButtonHandler.initReturnButton(levelTexts[3]);
 
-            setX(levelTexts[4], 190);
-            setY(levelTexts[4], screenCenter.getY());
-
-            setX(levelTexts[5], 250);
-            setY(levelTexts[5], screenCenter.getY() + 60);
-
-            setX(levelTexts[6], 160);
-            setY(levelTexts[6], screenCenter.getY() + 120);
+            setXY(levelTexts[4], 190, screenCenter.getY());
+            setXY(levelTexts[5], 250, screenCenter.getY() + 60);
+            setXY(levelTexts[6], 160, screenCenter.getY() + 120);
         }
     }
 
     public static class ItemHandler {
 
         public static void swapBats() {
-            AudioController.itemPicked();
+            AudioHandler.itemPicked();
             batsSwapped = !batsSwapped;
             double aiX = xOf(ai), playerX = xOf(player);
             setX(player, aiX / 2);
             setX(ai, playerX);
             setX(player, aiX);
-            renewInfo();
+            renewWinratePanel();
         }
 
         public static void batResize(boolean increase) {
-            AudioController.itemPicked();
+            AudioHandler.itemPicked();
             Rectangle whoPicked = playersBallTurn ? player : ai;
             if (increase) {
                 setY(whoPicked, (yOf(whoPicked) + heightOf(whoPicked) + 10 >= HEIGHT - 2) ? yOf(whoPicked) - 10 : yOf(whoPicked) - 5);
@@ -1086,99 +1028,99 @@ public class Game extends Application {
             } else {
                 if (heightOf(whoPicked) - 10 <= 5) {
                     whoPicked.setHeight(5);
-                    renewInfo();
+                    renewWinratePanel();
                     return;
                 }
                 whoPicked.setHeight(heightOf(whoPicked) - 10);
                 setY(whoPicked, yOf(whoPicked) + 5);
             }
             if (whoPicked == player) {
-                if (!itemsPicked.contains(ImageController.getItemImage(increase ? 0 : 1)))
-                    itemsPicked.add(ImageController.getItemImage(increase ? 0 : 1));
+                if (!itemsPicked.contains(ImageHandler.getItemImage(increase ? 0 : 1)))
+                    itemsPicked.add(ImageHandler.getItemImage(increase ? 0 : 1));
             } else {
-                if (!ai.getItemsPicked().contains(ImageController.getItemImage(increase ? 0 : 1)))
-                    ai.getItemsPicked().add(ImageController.getItemImage(increase ? 0 : 1));
+                if (!ai.getItemsPicked().contains(ImageHandler.getItemImage(increase ? 0 : 1)))
+                    ai.getItemsPicked().add(ImageHandler.getItemImage(increase ? 0 : 1));
             }
-            renewInfo();
+            renewWinratePanel();
         }
 
-        public static void setBallSpeedUpScale(double scale) {
-            AudioController.itemPicked();
-            speedUpRatio *= scale;
+        public static void setBallSpeedScale(double scale) {
+            AudioHandler.itemPicked();
+            ballSpeedRatio *= scale;
             ballDX *= scale;
         }
 
         public static void changeBatSpeed(boolean speedUp) {
-            AudioController.itemPicked();
+            AudioHandler.itemPicked();
             if (speedUp) {
                 if (playersBallTurn) {
                     playerSpeedScale *= 1.16;
-                    if (!itemsPicked.contains(ImageController.getItemImage(5)))
-                        itemsPicked.add(ImageController.getItemImage(5));
+                    if (!itemsPicked.contains(ImageHandler.getItemImage(5)))
+                        itemsPicked.add(ImageHandler.getItemImage(5));
                 } else {
                     aiSpeedScale *= 1.16;
-                    if (!ai.getItemsPicked().contains(ImageController.getItemImage(5)))
-                        ai.getItemsPicked().add(ImageController.getItemImage(5));
+                    if (!ai.getItemsPicked().contains(ImageHandler.getItemImage(5)))
+                        ai.getItemsPicked().add(ImageHandler.getItemImage(5));
                 }
             } else {
                 if (playersBallTurn) {
                     playerSpeedScale *= 0.84;
-                    if (!itemsPicked.contains(ImageController.getItemImage(6)))
-                        itemsPicked.add(ImageController.getItemImage(6));
+                    if (!itemsPicked.contains(ImageHandler.getItemImage(6)))
+                        itemsPicked.add(ImageHandler.getItemImage(6));
                 } else {
                     aiSpeedScale *= 0.84;
-                    if (!ai.getItemsPicked().contains(ImageController.getItemImage(6)))
-                        ai.getItemsPicked().add(ImageController.getItemImage(6));
+                    if (!ai.getItemsPicked().contains(ImageHandler.getItemImage(6)))
+                        ai.getItemsPicked().add(ImageHandler.getItemImage(6));
                 }
             }
-            renewInfo();
+            renewWinratePanel();
         }
 
         public static void timeStop() {
-            AudioController.itemPicked();
+            AudioHandler.itemPicked();
             if (playersBallTurn) {
                 hasTimeStopper = true;
-                if (!itemsPicked.contains(ImageController.getItemImage(2)))
-                    itemsPicked.add(ImageController.getItemImage(2));
+                if (!itemsPicked.contains(ImageHandler.getItemImage(2)))
+                    itemsPicked.add(ImageHandler.getItemImage(2));
             } else {
                 ai.setTimeStopper(true);
-                if (!ai.getItemsPicked().contains(ImageController.getItemImage(2)))
-                    ai.getItemsPicked().add(ImageController.getItemImage(2));
+                if (!ai.getItemsPicked().contains(ImageHandler.getItemImage(2)))
+                    ai.getItemsPicked().add(ImageHandler.getItemImage(2));
             }
-            renewInfo();
+            renewWinratePanel();
         }
 
         public static void plusScore() {
-            AudioController.itemPicked();
+            AudioHandler.itemPicked();
             if (playersBallTurn) {
                 if (missesLeft == 4)
                     return;
-                missesLeft++;
-                score[missesLeft] = ImageController.getSwitchImage(true);
-                renewInfo();
+                ++missesLeft;
+                score[missesLeft] = ImageHandler.getSwitchImage(true);
+                renewWinratePanel();
             } else {
                 if (ai.getMissesLeft() == 4)
                     return;
                 ai.setMissesLeft(ai.getMissesLeft() + 1);
-                ai.getScore()[ai.getMissesLeft()] = ImageController.getSwitchImage(true);
-                renewInfo();
+                ai.getScore()[ai.getMissesLeft()] = ImageHandler.getSwitchImage(true);
+                renewWinratePanel();
             }
         }
 
         public static void addPistol() {
-            AudioController.pistolPicked();
+            AudioHandler.pistolPicked();
             if (playersBallTurn) {
                 hasPistol = true;
                 pistolsLeft = 3;
-                if (!itemsPicked.contains(ImageController.getItemImage(9)))
-                    itemsPicked.add(ImageController.getItemImage(9));
+                if (!itemsPicked.contains(ImageHandler.getItemImage(9)))
+                    itemsPicked.add(ImageHandler.getItemImage(9));
             } else {
                 ai.setHasPistol(true);
                 ai.setShotsLeft(3);
-                if (!ai.getItemsPicked().contains(ImageController.getItemImage(9)))
-                    ai.getItemsPicked().add(ImageController.getItemImage(9));
+                if (!ai.getItemsPicked().contains(ImageHandler.getItemImage(9)))
+                    ai.getItemsPicked().add(ImageHandler.getItemImage(9));
             }
-            renewInfo();
+            renewWinratePanel();
         }
     }
 }
